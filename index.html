@@ -1,23 +1,25 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" class="dark"> <!-- ตั้งค่าเริ่มต้นเป็น Dark Mode -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OTP Service Receiver</title>
     
-    <!-- นำเข้าฟอนต์ Kanit -->
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- นำเข้าฟอนต์ LINE Seed Sans TH -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@7/fonts/LineSeed/LineSeed.css" />
     
     <!-- นำเข้า Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- ตั้งค่า Tailwind และ Animations -->
+    <!-- ตั้งค่า Tailwind -->
     <script>
         tailwind.config = {
+            darkMode: 'class', // เปิดใช้งานระบบเปลี่ยนธีมด้วย Class 'dark'
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Kanit', 'sans-serif'],
+                        // เปลี่ยนฟอนต์เริ่มต้นของ Tailwind เป็น LINE Seed
+                        sans: ['"LINE Seed Sans TH"', 'sans-serif'],
                     },
                     keyframes: {
                         popIn: {
@@ -39,46 +41,72 @@
     </script>
 
     <style>
-        body { font-family: 'Kanit', sans-serif; }
+        body { font-family: 'LINE Seed Sans TH', sans-serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* คลาสสำหรับทำ Smooth Transition ให้กับคอนเทนต์หลัก */
+        /* คลาสสำหรับทำ Smooth Transition */
         .content-transition {
             transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .content-hidden {
             opacity: 0 !important;
             transform: scale(0.95) translateY(10px) !important;
+            pointer-events: none;
         }
     </style>
 </head>
-<body class="bg-black text-white min-h-screen selection:bg-white/30 flex flex-col items-center relative overflow-x-hidden">
+<body class="bg-neutral-50 dark:bg-black text-neutral-900 dark:text-white min-h-screen selection:bg-neutral-300 dark:selection:bg-white/30 flex flex-col items-center relative overflow-x-hidden transition-colors duration-500">
 
-    <!-- แสงพื้นหลัง (Background Glow) เปลี่ยนสีนุ่มนวล 1 วินาที -->
-    <div id="bg-glow" class="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[90vw] max-w-[600px] h-[400px] opacity-25 blur-[100px] rounded-full pointer-events-none transition-colors duration-1000 ease-in-out z-0 bg-red-600"></div>
+    <!-- แสงพื้นหลัง (Background Glow) -->
+    <div id="bg-glow" class="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[90vw] max-w-[600px] h-[400px] opacity-15 dark:opacity-25 blur-[80px] dark:blur-[100px] rounded-full pointer-events-none transition-all duration-1000 ease-in-out z-0 bg-neutral-400 dark:bg-neutral-800"></div>
 
     <div class="w-full max-w-md p-4 min-h-screen flex flex-col relative z-10">
         
-        <!-- Header / Tabs -->
-        <header id="tabs-container" class="flex justify-center space-x-2 py-4 mb-6 overflow-x-auto no-scrollbar">
-            <!-- สร้างผ่าน JavaScript -->
-        </header>
+        <!-- Top Navigation Bar -->
+        <div class="flex justify-between items-center py-4 mb-4">
+            <!-- ปุ่มกลับ (ซ่อนในหน้าแรก) -->
+            <button id="back-btn" onclick="goToHome()" class="opacity-0 pointer-events-none flex items-center text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300">
+                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                หน้าแรก
+            </button>
 
-        <!-- Main Content Area (ห่อหุ้มด้วย ID นี้เพื่อให้แอนิเมชันตอนเปลี่ยนแท็บทำงาน) -->
-        <div id="animated-content" class="flex-1 flex flex-col items-center content-transition w-full">
+            <!-- ปุ่มเปลี่ยนธีม -->
+            <button onclick="toggleTheme()" class="p-2 rounded-full bg-white dark:bg-neutral-900 shadow-sm dark:shadow-none border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300 ml-auto">
+                <!-- ไอคอนพระอาทิตย์ (โชว์ใน Dark Mode) -->
+                <svg id="icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                <!-- ไอคอนพระจันทร์ (โชว์ใน Light Mode) -->
+                <svg id="icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+            </button>
+        </div>
+
+        <!-- ================= SCREEN 1: หน้าแรก (เลือกแอป) ================= -->
+        <div id="screen-home" class="flex-1 flex flex-col items-center content-transition w-full">
+            <h1 class="text-2xl font-bold mb-2 text-center mt-4 tracking-tight">
+                เลือกระบบบริการ
+            </h1>
+            <p class="text-neutral-500 dark:text-neutral-400 text-sm mb-8 text-center font-normal">
+                เลือกแอปพลิเคชันที่คุณต้องการรับรหัส OTP
+            </p>
+
+            <div id="app-grid" class="w-full space-y-4">
+                <!-- สร้างปุ่มแอปผ่าน JavaScript -->
+            </div>
+        </div>
+
+        <!-- ================= SCREEN 2: หน้าบริการ (ดึง OTP) ================= -->
+        <div id="screen-service" class="flex-1 flex flex-col items-center content-transition w-full hidden absolute top-[80px] left-0 w-full px-4">
             
             <!-- Logo Section -->
-            <div id="main-logo-container" class="w-28 h-28 rounded-3xl mb-6 flex items-center justify-center shadow-2xl transition-all duration-500 bg-neutral-900 border border-neutral-800 p-3 z-10 relative">
-                <!-- ดึงรูปจากโฟลเดอร์เดียวกับโค้ด -->
-                <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover rounded-xl drop-shadow-md transition-transform duration-500" 
+            <div id="main-logo-container" class="w-28 h-28 rounded-3xl mb-6 flex items-center justify-center shadow-[0_10px_30px_rgba(0,0,0,0.1)] dark:shadow-2xl transition-all duration-700 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 p-3 z-10 relative">
+                <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover rounded-xl transition-transform duration-500" 
                      onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
             </div>
 
-            <h1 class="text-2xl font-semibold mb-2 text-center transition-colors duration-500">
+            <h1 class="text-2xl font-bold mb-2 text-center transition-colors duration-500 tracking-tight">
                 OTP <span id="main-title-text" class=""></span>
             </h1>
-            <p class="text-neutral-400 text-sm mb-8 text-center">
+            <p class="text-neutral-500 dark:text-neutral-400 text-sm mb-8 text-center font-normal">
                 กรอกอีเมลที่ใช้สั่งซื้อเพื่อรับรหัสยืนยันตัวตน
             </p>
 
@@ -88,24 +116,24 @@
                     type="email"
                     id="email-input"
                     placeholder="example@gmail.com"
-                    class="w-full bg-neutral-900/80 backdrop-blur-md border border-neutral-700 text-white rounded-2xl px-5 py-4 outline-none focus:border-white transition-all placeholder-neutral-600 text-lg shadow-inner"
+                    class="w-full bg-white dark:bg-neutral-900/80 backdrop-blur-md border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:border-neutral-400 dark:focus:border-white transition-all placeholder-neutral-400 dark:placeholder-neutral-600 text-lg shadow-sm dark:shadow-inner font-medium"
                 />
             </div>
             <!-- ข้อความแจ้งเตือนเมื่อไม่กรอกอีเมล -->
-            <div id="error-message" class="w-full text-red-500 text-sm pl-2 mb-4 h-5 opacity-0 transition-opacity duration-300">
+            <div id="error-message" class="w-full text-red-500 text-sm pl-2 mb-4 h-5 opacity-0 transition-opacity duration-300 font-medium">
                 * กรุณากรอกอีเมลก่อนดึงรหัสนะครับ
             </div>
 
             <!-- Action Button -->
-            <button id="fetch-btn" onclick="handleFetchOTP()" class="w-full py-4 rounded-2xl font-medium text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-lg mb-8 relative overflow-hidden group">
+            <button id="fetch-btn" onclick="handleFetchOTP()" class="w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-lg mb-8 relative overflow-hidden group tracking-wide">
                 <!-- สร้างผ่าน JavaScript -->
             </button>
 
             <!-- Divider -->
-            <div class="w-full flex items-center mb-6 opacity-30">
-                <div class="flex-1 border-t border-neutral-600"></div>
-                <span class="px-3 text-xs text-neutral-400">รายการข้อความ</span>
-                <div class="flex-1 border-t border-neutral-600"></div>
+            <div class="w-full flex items-center mb-6 opacity-50 dark:opacity-30">
+                <div class="flex-1 border-t border-neutral-300 dark:border-neutral-600"></div>
+                <span class="px-3 text-xs text-neutral-500 dark:text-neutral-400 font-medium">รายการข้อความล่าสุด</span>
+                <div class="flex-1 border-t border-neutral-300 dark:border-neutral-600"></div>
             </div>
 
             <!-- OTP List -->
@@ -118,101 +146,136 @@
 
     <!-- JavaScript สำหรับควบคุมการทำงานทั้งหมด -->
     <script>
-        // --- 1. ข้อมูลตั้งต้น (อ้างอิงไฟล์รูปในระดับเดียวกับ index.html) ---
+        // --- 1. ข้อมูลตั้งต้น ---
         const SERVICES = [
-            { id: 'netflix', name: 'Netflix', color: 'bg-red-600', text: 'text-red-500', shadow: 'shadow-red-600/40', glow: 'bg-red-600', localImage: './netflix.jpg' },
-            { id: 'disney', name: 'Disney+', color: 'bg-blue-600', text: 'text-blue-500', shadow: 'shadow-blue-600/40', glow: 'bg-blue-600', localImage: './disney.jpg' },
-            { id: 'chatgpt', name: 'ChatGPT', color: 'bg-emerald-600', text: 'text-emerald-500', shadow: 'shadow-emerald-600/40', glow: 'bg-emerald-600', localImage: './gpt.jpg' }
+            { id: 'netflix', name: 'Netflix', color: 'bg-red-600', text: 'text-red-600 dark:text-red-500', shadow: 'shadow-red-600/20 dark:shadow-red-600/40', glow: 'bg-red-500 dark:bg-red-600', localImage: './netflix.jpg' },
+            { id: 'disney', name: 'Disney+', color: 'bg-blue-600', text: 'text-blue-600 dark:text-blue-500', shadow: 'shadow-blue-600/20 dark:shadow-blue-600/40', glow: 'bg-blue-500 dark:bg-blue-600', localImage: './disney.jpg' },
+            { id: 'chatgpt', name: 'ChatGPT', color: 'bg-emerald-600', text: 'text-emerald-600 dark:text-emerald-500', shadow: 'shadow-emerald-600/20 dark:shadow-emerald-600/40', glow: 'bg-emerald-500 dark:bg-emerald-600', localImage: './gpt.jpg' }
         ];
 
-        let activeService = SERVICES[0];
+        let activeService = null;
         let cooldown = 0;
         let isLoading = false;
-        let isSwitchingTab = false; // ป้องกันการกดแท็บรัวๆ
-        let otpList = [
-            { id: 1, time: '10:45 น.', date: '15/05/2026', title: 'รหัสสำหรับเข้าใช้งานชั่วคราว', code: '845219', isExpired: false, service: 'netflix' },
-            { id: 2, time: '09:12 น.', date: '15/05/2026', title: 'การอัปเดตบัญชีของคุณ', code: '129482', isExpired: true, service: 'netflix' },
-        ];
+        let isSwitchingScreen = false;
+        let otpList = [];
 
-        // --- 2. ฟังก์ชันอัปเดต UI และ แอนิเมชัน ---
-        function renderUI() {
-            renderTabs();
-            updateMainLogo();
-            updateBackgroundGlow();
-            updateButton();
-            renderOTPList();
+        // --- 2. ระบบ Light / Dark Mode ---
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
         }
 
-        // เปลี่ยนบริการที่เลือก (พร้อมแอนิเมชัน Slide & Fade)
-        function setActiveService(serviceId) {
-            if (activeService.id === serviceId || isSwitchingTab) return;
-            isSwitchingTab = true;
-
-            const contentWrapper = document.getElementById('animated-content');
-            
-            // 1. ซ่อนคอนเทนต์ลงไป (Fade out & Scale down)
-            contentWrapper.classList.add('content-hidden');
-
-            // 2. รอแอนิเมชันซ่อนเสร็จ ค่อยเปลี่ยนข้อมูล
-            setTimeout(() => {
-                activeService = SERVICES.find(s => s.id === serviceId);
-                renderUI(); // อัปเดตข้อมูลเป็นแอปใหม่
-                
-                // 3. โชว์คอนเทนต์เด้งกลับขึ้นมา (Fade in & Scale up)
-                contentWrapper.classList.remove('content-hidden');
-                isSwitchingTab = false;
-            }, 300); // 300ms คือเวลาตอนหุบลง
-        }
-
-        // อัปเดตแถบเมนู
-        function renderTabs() {
-            const container = document.getElementById('tabs-container');
-            container.innerHTML = SERVICES.map(srv => {
-                const isActive = activeService.id === srv.id;
-                const baseClasses = "px-4 py-2 rounded-full text-sm font-medium transition-all duration-500 whitespace-nowrap flex items-center space-x-2 cursor-pointer border border-transparent backdrop-blur-md relative overflow-hidden";
-                const activeClasses = isActive ? "bg-white/10 border-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.1)] scale-105" : "bg-neutral-800/50 text-neutral-400 hover:bg-neutral-800";
-                const imgStyle = isActive ? "scale-110" : "grayscale opacity-50";
-                
+        // --- 3. ระบบเปลี่ยนหน้าต่าง (Navigation) ---
+        function initAppGrid() {
+            const container = document.getElementById('app-grid');
+            container.innerHTML = SERVICES.map((srv, index) => {
+                const delay = index * 0.1;
                 return `
-                    <button onclick="setActiveService('${srv.id}')" class="${baseClasses} ${activeClasses}">
-                        <img src="${srv.localImage}" alt="${srv.name}" class="w-4 h-4 object-cover rounded-sm transition-all duration-500 ${imgStyle}" 
-                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
-                        <span>${srv.name}</span>
+                    <button onclick="goToService('${srv.id}')" class="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 rounded-2xl p-4 flex items-center space-x-4 shadow-sm dark:shadow-none hover:shadow-md transition-all duration-300 active:scale-95 animate-slideUpFade opacity-0" style="animation-delay: ${delay}s">
+                        <div class="w-14 h-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 overflow-hidden flex-shrink-0">
+                            <img src="${srv.localImage}" alt="${srv.name}" class="w-full h-full object-cover" 
+                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
+                        </div>
+                        <div class="flex-1 text-left">
+                            <h3 class="text-lg font-bold text-neutral-900 dark:text-white">${srv.name}</h3>
+                            <p class="text-sm text-neutral-500 dark:text-neutral-400 font-normal">ดึงรหัสยืนยันตัวตนล่าสุด</p>
+                        </div>
+                        <div class="text-neutral-400 dark:text-neutral-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                        </div>
                     </button>
                 `;
             }).join('');
         }
 
-        // อัปเดตโลโก้หลักและชื่อ
+        function goToService(serviceId) {
+            if (isSwitchingScreen) return;
+            isSwitchingScreen = true;
+            
+            activeService = SERVICES.find(s => s.id === serviceId);
+            
+            const screenHome = document.getElementById('screen-home');
+            const screenService = document.getElementById('screen-service');
+            const backBtn = document.getElementById('back-btn');
+            const bgGlow = document.getElementById('bg-glow');
+
+            // Fade Out หน้าแรก
+            screenHome.classList.add('content-hidden');
+
+            setTimeout(() => {
+                screenHome.classList.add('hidden');
+                screenService.classList.remove('hidden');
+                
+                // อัปเดตข้อมูลในหน้า Service
+                updateMainLogo();
+                updateButton();
+                renderOTPList();
+
+                // เปลี่ยนแสงพื้นหลังตามแอป
+                bgGlow.className = `absolute top-[-50px] left-1/2 -translate-x-1/2 w-[90vw] max-w-[600px] h-[400px] opacity-15 dark:opacity-25 blur-[80px] dark:blur-[100px] rounded-full pointer-events-none transition-all duration-1000 ease-in-out z-0 ${activeService.glow}`;
+                
+                // Fade In หน้า Service
+                setTimeout(() => {
+                    screenService.classList.remove('content-hidden');
+                    backBtn.classList.remove('opacity-0', 'pointer-events-none');
+                    isSwitchingScreen = false;
+                }, 50);
+            }, 400);
+        }
+
+        function goToHome() {
+            if (isSwitchingScreen) return;
+            isSwitchingScreen = true;
+
+            const screenHome = document.getElementById('screen-home');
+            const screenService = document.getElementById('screen-service');
+            const backBtn = document.getElementById('back-btn');
+            const bgGlow = document.getElementById('bg-glow');
+
+            // เคลียร์ข้อมูลการกรอก
+            document.getElementById('email-input').value = '';
+            document.getElementById('error-message').classList.remove('opacity-100');
+            document.getElementById('error-message').classList.add('opacity-0');
+
+            // Fade Out หน้า Service
+            screenService.classList.add('content-hidden');
+            backBtn.classList.add('opacity-0', 'pointer-events-none');
+
+            setTimeout(() => {
+                screenService.classList.add('hidden');
+                screenHome.classList.remove('hidden');
+                
+                // คืนค่าแสงพื้นหลังเป็นสีเทา
+                bgGlow.className = `absolute top-[-50px] left-1/2 -translate-x-1/2 w-[90vw] max-w-[600px] h-[400px] opacity-15 dark:opacity-25 blur-[80px] dark:blur-[100px] rounded-full pointer-events-none transition-all duration-1000 ease-in-out z-0 bg-neutral-400 dark:bg-neutral-800`;
+                
+                setTimeout(() => {
+                    screenHome.classList.remove('content-hidden');
+                    activeService = null;
+                    isSwitchingScreen = false;
+                }, 50);
+            }, 400);
+        }
+
+        // --- 4. อัปเดต UI ในหน้า Service ---
         function updateMainLogo() {
             const logoContainer = document.getElementById('main-logo-container');
             const logoImg = document.getElementById('main-logo-img');
             const titleText = document.getElementById('main-title-text');
 
-            logoContainer.className = `w-28 h-28 rounded-3xl mb-6 flex items-center justify-center shadow-2xl transition-all duration-700 bg-neutral-900 border border-neutral-800 p-3 z-10 relative ${activeService.shadow}`;
-            
+            logoContainer.className = `w-28 h-28 rounded-3xl mb-6 flex items-center justify-center shadow-[0_10px_30px_rgba(0,0,0,0.1)] dark:shadow-2xl transition-all duration-700 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 p-3 z-10 relative ${activeService.shadow}`;
             logoImg.src = activeService.localImage;
-            
             titleText.textContent = activeService.name;
             titleText.className = `${activeService.text} transition-colors duration-500`;
         }
 
-        // อัปเดตแสงพื้นหลัง
-        function updateBackgroundGlow() {
-            const bgGlow = document.getElementById('bg-glow');
-            SERVICES.forEach(s => bgGlow.classList.remove(s.glow));
-            bgGlow.classList.add(activeService.glow);
-        }
-
-        // อัปเดตปุ่มกดดึงข้อมูล
         function updateButton() {
+            if (!activeService) return;
             const btn = document.getElementById('fetch-btn');
             
             if (isLoading) {
                 btn.disabled = true;
-                btn.className = "w-full py-4 rounded-2xl font-medium text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-lg mb-8 bg-neutral-800/80 text-neutral-500 cursor-not-allowed border border-neutral-700 backdrop-blur-sm";
+                btn.className = "w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-sm mb-8 bg-neutral-200 dark:bg-neutral-800/80 text-neutral-500 cursor-not-allowed border border-neutral-200 dark:border-neutral-700 backdrop-blur-sm tracking-wide";
                 btn.innerHTML = `
-                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-neutral-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-neutral-500 dark:text-neutral-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
@@ -220,14 +283,14 @@
                 `;
             } else if (cooldown > 0) {
                 btn.disabled = true;
-                btn.className = "w-full py-4 rounded-2xl font-medium text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-lg mb-8 bg-neutral-800/80 text-neutral-500 cursor-not-allowed border border-neutral-700 backdrop-blur-sm";
+                btn.className = "w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-sm mb-8 bg-neutral-200 dark:bg-neutral-800/80 text-neutral-500 cursor-not-allowed border border-neutral-200 dark:border-neutral-700 backdrop-blur-sm tracking-wide";
                 btn.innerHTML = `
                     <svg class="w-5 h-5 mr-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     ลองใหม่ใน ${cooldown} วินาที
                 `;
             } else {
                 btn.disabled = false;
-                btn.className = `w-full py-4 rounded-2xl font-medium text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-lg mb-8 ${activeService.color} text-white hover:opacity-90 hover:scale-[1.02] active:scale-95 group-hover:shadow-[0_0_20px_rgba(255,255,255,0.15)]`;
+                btn.className = `w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-[0_10px_20px_rgba(0,0,0,0.1)] dark:shadow-lg mb-8 ${activeService.color} text-white hover:opacity-90 hover:scale-[1.02] active:scale-95 group-hover:shadow-[0_10px_25px_rgba(0,0,0,0.2)] dark:group-hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] tracking-wide`;
                 btn.innerHTML = `
                     <svg class="w-5 h-5 mr-2 transition-transform duration-300 group-hover:-translate-y-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                     ดึงข้อความ OTP ล่าสุด
@@ -284,14 +347,15 @@
             }, 1500);
         }
 
-        // --- 3. การแสดงผลรายการ OTP (พร้อมแอนิเมชันเด้งขึ้นทีละอัน) ---
+        // --- 5. การแสดงผลรายการ OTP ---
         function renderOTPList() {
+            if (!activeService) return;
             const container = document.getElementById('otp-list-container');
             const filteredList = otpList.filter(otp => otp.service === activeService.id);
 
             if (filteredList.length === 0) {
                 container.innerHTML = `
-                    <div class="text-center text-neutral-500 py-10 bg-neutral-900/40 rounded-2xl border border-neutral-800/50 border-dashed backdrop-blur-sm animate-popIn opacity-0">
+                    <div class="text-center text-neutral-500 py-10 bg-white/50 dark:bg-neutral-900/40 rounded-2xl border border-neutral-200 dark:border-neutral-800/50 border-dashed backdrop-blur-sm animate-popIn opacity-0">
                         ยังไม่มีข้อความสำหรับบริการนี้
                     </div>
                 `;
@@ -299,49 +363,48 @@
             }
 
             container.innerHTML = filteredList.map((item, index) => {
-                // ใส่ดีเลย์ให้แต่ละกล่องเด้งขึ้นมาไม่พร้อมกัน (0.1s, 0.2s, 0.3s...)
                 const animationDelay = index * 0.1;
                 
                 return `
-                <div class="bg-neutral-900/80 backdrop-blur-md border border-neutral-800 hover:border-neutral-700 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer animate-slideUpFade opacity-0" style="animation-delay: ${animationDelay}s" onclick="toggleCard(${item.id})">
+                <div class="bg-white dark:bg-neutral-900/80 backdrop-blur-md border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer shadow-sm dark:shadow-none hover:shadow-md animate-slideUpFade opacity-0" style="animation-delay: ${animationDelay}s" onclick="toggleCard(${item.id})">
                     
                     <div class="p-4 flex items-start gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-neutral-800 flex items-center justify-center p-1.5 border border-neutral-700/50 transition-all duration-500 ${item.isExpired ? 'opacity-40 grayscale' : ''}">
+                        <div class="w-12 h-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center p-1.5 border border-neutral-200 dark:border-neutral-700/50 transition-all duration-500 ${item.isExpired ? 'opacity-50 grayscale' : ''}">
                             <img src="${activeService.localImage}" alt="logo" class="w-full h-full object-cover rounded-lg" 
                                  onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
                         </div>
                         
                         <div class="flex-1">
                             <div class="flex justify-between items-start mb-1">
-                                <span class="text-sm font-medium ${item.isExpired ? 'text-neutral-500' : 'text-neutral-300'}">
+                                <span class="text-sm font-medium ${item.isExpired ? 'text-neutral-400 dark:text-neutral-500' : 'text-neutral-600 dark:text-neutral-300'}">
                                     ${item.date} ${item.time}
                                 </span>
                                 ${item.isExpired 
-                                    ? '<span class="px-2 py-0.5 bg-neutral-800 text-neutral-500 text-xs rounded-md border border-neutral-700 transition-colors">หมดอายุ</span>' 
-                                    : '<span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs rounded-md shadow-[0_0_10px_rgba(16,185,129,0.2)]">ล่าสุด</span>'
+                                    ? '<span class="px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-500 text-xs rounded-md border border-neutral-200 dark:border-neutral-700 transition-colors font-medium">หมดอายุ</span>' 
+                                    : '<span class="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-xs rounded-md shadow-sm dark:shadow-[0_0_10px_rgba(16,185,129,0.2)] font-bold">ล่าสุด</span>'
                                 }
                             </div>
-                            <p class="text-base ${item.isExpired ? 'text-neutral-600' : 'text-white'}">
+                            <p class="text-base font-bold dark:font-medium ${item.isExpired ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-900 dark:text-white'}">
                                 ${item.title}
                             </p>
                         </div>
 
-                        <div class="mt-2 text-neutral-500">
+                        <div class="mt-2 text-neutral-400 dark:text-neutral-500">
                             <svg id="arrow-${item.id}" class="w-5 h-5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                         </div>
                     </div>
 
-                    <div id="body-${item.id}" class="max-h-0 opacity-0 overflow-hidden transition-all duration-500 ease-in-out bg-black/50 border-t border-neutral-800/50">
+                    <div id="body-${item.id}" class="max-h-0 opacity-0 overflow-hidden transition-all duration-500 ease-in-out bg-neutral-50 dark:bg-black/50 border-t border-neutral-100 dark:border-neutral-800/50">
                         <div class="flex items-center justify-between py-5 px-4">
                             <div>
-                                <span class="text-sm text-neutral-400 block mb-1">รหัสยืนยันของคุณคือ</span>
-                                <span class="text-4xl font-bold tracking-widest ${item.isExpired ? 'text-neutral-600' : 'text-white drop-shadow-md'}">
+                                <span class="text-sm text-neutral-500 dark:text-neutral-400 block mb-1 font-medium">รหัสยืนยันของคุณคือ</span>
+                                <span class="text-4xl font-bold tracking-widest ${item.isExpired ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-900 dark:text-white dark:drop-shadow-md'}">
                                     ${item.code}
                                 </span>
                             </div>
                             
                             <button id="copy-btn-${item.id}" onclick="copyToClipboard(event, '${item.code}', ${item.id}, ${item.isExpired})" 
-                                class="px-4 py-2 rounded-xl flex items-center transition-all ${item.isExpired ? 'bg-neutral-800 text-neutral-600 cursor-not-allowed' : 'bg-white/10 text-white hover:bg-white/20 hover:scale-105 active:scale-95'}"
+                                class="px-4 py-2 rounded-xl flex items-center font-bold transition-all ${item.isExpired ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600 cursor-not-allowed' : 'bg-neutral-200 dark:bg-white/10 text-neutral-700 dark:text-white hover:bg-neutral-300 dark:hover:bg-white/20 hover:scale-105 active:scale-95'}"
                                 ${item.isExpired ? 'disabled' : ''}>
                                 <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                                 คัดลอก
@@ -380,14 +443,14 @@
             document.body.removeChild(tempInput);
 
             const btn = document.getElementById(`copy-btn-${id}`);
-            btn.className = "px-4 py-2 rounded-xl flex items-center transition-all bg-emerald-500/20 text-emerald-400";
+            btn.className = "px-4 py-2 rounded-xl flex items-center font-bold transition-all bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400";
             btn.innerHTML = `
                 <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                 คัดลอกแล้ว
             `;
 
             setTimeout(() => {
-                btn.className = "px-4 py-2 rounded-xl flex items-center transition-all bg-white/10 text-white hover:bg-white/20 hover:scale-105 active:scale-95";
+                btn.className = "px-4 py-2 rounded-xl flex items-center font-bold transition-all bg-neutral-200 dark:bg-white/10 text-neutral-700 dark:text-white hover:bg-neutral-300 dark:hover:bg-white/20 hover:scale-105 active:scale-95";
                 btn.innerHTML = `
                     <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     คัดลอก
@@ -395,9 +458,11 @@
             }, 2000);
         }
 
-        // Render ครั้งแรกเมื่อโหลดหน้าเว็บ
-        renderUI();
+        // --- 6. รันครั้งแรก ---
+        // ซ่อนหน้า 2 ไว้ตอนโหลดแอปครั้งแรก
+        document.getElementById('screen-service').classList.add('content-hidden');
+        initAppGrid();
 
     </script>
 </body>
-</html>`
+</html>
