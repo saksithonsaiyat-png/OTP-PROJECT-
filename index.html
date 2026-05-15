@@ -108,8 +108,10 @@
         <!-- ================= SCREEN 2: หน้าบริการ (ดึง OTP) ================= -->
         <div id="screen-service" class="flex-1 flex flex-col items-center content-transition w-full hidden absolute top-[80px] left-0 w-full px-4 pb-10">
             
-            <div id="main-logo-container" class="w-24 h-24 rounded-2xl mb-6 flex items-center justify-center transition-all duration-700 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-2 z-10 relative overflow-hidden">
-                <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover rounded-xl transition-transform duration-500" 
+            <!-- Logo Section (นำแสงออก นำขอบออก ซูมภาพ 110% ให้เต็มกรอบ) -->
+            <div id="main-logo-container" class="w-24 h-24 rounded-3xl mb-6 flex items-center justify-center transition-all duration-700 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-0 z-10 relative overflow-hidden shadow-sm">
+                <!-- ใช้ scale-110 เพื่อซูมภาพเข้าเล็กน้อย ตัดขอบขาวของไฟล์ jpg ออก -->
+                <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover transform scale-110 transition-transform duration-500" 
                      onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
             </div>
 
@@ -203,8 +205,9 @@
                 const delay = index * 0.1;
                 return `
                     <button onclick="goToService('${srv.id}')" class="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 rounded-2xl p-4 flex items-center space-x-4 shadow-sm dark:shadow-none hover:shadow-md transition-all duration-300 active:scale-95 animate-slideUpFade opacity-0" style="animation-delay: ${delay}s">
-                        <div class="w-14 h-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 overflow-hidden flex-shrink-0 border border-neutral-200 dark:border-neutral-700/50">
-                            <img src="${srv.localImage}" alt="${srv.name}" class="w-full h-full object-cover" 
+                        <!-- ปรับขอบโค้ง ซูมภาพ 110% และนำ Padding ออก -->
+                        <div class="w-14 h-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 overflow-hidden flex-shrink-0 border border-neutral-200 dark:border-neutral-700/50 p-0 relative">
+                            <img src="${srv.localImage}" alt="${srv.name}" class="w-full h-full object-cover transform scale-110" 
                                  onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
                         </div>
                         <div class="flex-1 text-left">
@@ -407,8 +410,9 @@
                 <div class="bg-white dark:bg-neutral-900/80 backdrop-blur-md border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer shadow-sm dark:shadow-none hover:shadow-md animate-slideUpFade opacity-0" style="animation-delay: ${animationDelay}s" onclick="toggleCard(${item.id})">
                     
                     <div class="p-4 flex items-start gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center p-1.5 border border-neutral-200 dark:border-neutral-700/50 transition-all duration-500 ${item.isExpired ? 'opacity-50 grayscale' : ''}">
-                            <img src="${activeService.localImage}" alt="logo" class="w-full h-full object-cover rounded-lg" 
+                        <!-- ปรับขอบโค้ง ซูมภาพ 110% และนำ Padding ออก -->
+                        <div class="w-12 h-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center p-0 border border-neutral-200 dark:border-neutral-700/50 transition-all duration-500 overflow-hidden relative ${item.isExpired ? 'opacity-50 grayscale' : ''}">
+                            <img src="${activeService.localImage}" alt="logo" class="w-full h-full object-cover transform scale-110" 
                                  onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
                         </div>
                         
