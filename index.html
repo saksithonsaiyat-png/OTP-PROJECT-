@@ -54,16 +54,13 @@
         }
     </style>
 </head>
-<body class="bg-neutral-50 dark:bg-black text-neutral-900 dark:text-white min-h-screen selection:bg-neutral-300 dark:selection:bg-white/30 flex flex-col items-center relative overflow-x-hidden transition-colors duration-500">
-
-    <!-- แสงพื้นหลัง (Background Glow) -->
-    <div id="bg-glow" class="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[90vw] max-w-[600px] h-[400px] opacity-15 dark:opacity-25 blur-[80px] dark:blur-[100px] rounded-full pointer-events-none transition-all duration-1000 ease-in-out z-0 bg-neutral-400 dark:bg-neutral-800"></div>
+<body class="bg-[#f0f9f6] dark:bg-black text-neutral-900 dark:text-white min-h-screen selection:bg-neutral-300 dark:selection:bg-white/30 flex flex-col items-center relative overflow-x-hidden transition-colors duration-500">
 
     <div class="w-full max-w-md p-4 min-h-screen flex flex-col relative z-10">
         
         <!-- Top Navigation Bar -->
         <div class="flex justify-between items-center py-4 mb-4 relative z-20">
-            <!-- ปุ่มกลับ (จัดวางแบบ absolute เพื่อไม่ให้ดันเลย์เอาต์เมนูด้านขวา) -->
+            <!-- ปุ่มกลับ -->
             <button id="back-btn" onclick="goToHome()" class="absolute left-0 opacity-0 pointer-events-none flex items-center text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300">
                 <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                 หน้าแรก
@@ -108,9 +105,7 @@
         <!-- ================= SCREEN 2: หน้าบริการ (ดึง OTP) ================= -->
         <div id="screen-service" class="flex-1 flex flex-col items-center content-transition w-full hidden absolute top-[80px] left-0 w-full px-4 pb-10">
             
-            <!-- Logo Section (นำแสงออก นำขอบออก ซูมภาพ 110% ให้เต็มกรอบ) -->
-            <div id="main-logo-container" class="w-24 h-24 rounded-3xl mb-6 flex items-center justify-center transition-all duration-700 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-0 z-10 relative overflow-hidden shadow-sm">
-                <!-- ใช้ scale-110 เพื่อซูมภาพเข้าเล็กน้อย ตัดขอบขาวของไฟล์ jpg ออก -->
+            <div id="main-logo-container" class="w-24 h-24 rounded-2xl mb-6 flex items-center justify-center transition-all duration-700 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-0 z-10 relative overflow-hidden shadow-sm">
                 <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover transform scale-110 transition-transform duration-500" 
                      onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
             </div>
@@ -166,25 +161,22 @@
     <script>
         // =========================================================
         // ⚙️ ตัวแปรสำหรับระบบหลังบ้าน (Backend Configuration)
-        // สามารถดึงข้อมูลจาก Database มาทับค่าตัวแปรเหล่านี้ได้เลย
         // =========================================================
         const SYSTEM_CONFIG = {
             lineContactUrl: "https://line.me/ti/p/~your_line_id", // ลิงก์ติดต่อเรา (LINE)
             guideDriveUrl: "https://drive.google.com/drive/folders/your_folder_id" // ลิงก์วิธีใช้งาน (Google Drive)
         };
 
-        // นำค่าไปใส่ในลิงก์ทันทีที่โหลดหน้าเว็บ
         document.getElementById('nav-contact').href = SYSTEM_CONFIG.lineContactUrl;
         document.getElementById('nav-guide').href = SYSTEM_CONFIG.guideDriveUrl;
         // =========================================================
 
-
         // --- 1. ข้อมูลตั้งต้น 4 แอปพลิเคชัน ---
         const SERVICES = [
-            { id: 'disney', name: 'Disney+', color: 'bg-blue-600', text: 'text-blue-600 dark:text-blue-500', glow: 'bg-blue-500 dark:bg-blue-600', localImage: './disney.jpg' },
-            { id: 'chatgpt', name: 'ChatGPT', color: 'bg-emerald-600', text: 'text-emerald-600 dark:text-emerald-500', glow: 'bg-emerald-500 dark:bg-emerald-600', localImage: './gpt.jpg' },
-            { id: 'trueid', name: 'TrueID', color: 'bg-red-500', text: 'text-red-600 dark:text-red-500', glow: 'bg-red-500 dark:bg-red-600', localImage: './trueid.jpg' },
-            { id: 'youku', name: 'Youku', color: 'bg-cyan-600', text: 'text-cyan-600 dark:text-cyan-500', glow: 'bg-cyan-500 dark:bg-cyan-600', localImage: './youku.jpg' }
+            { id: 'disney', name: 'Disney+', color: 'bg-blue-600', text: 'text-blue-600 dark:text-blue-500', localImage: './disney.jpg' },
+            { id: 'chatgpt', name: 'ChatGPT', color: 'bg-emerald-600', text: 'text-emerald-600 dark:text-emerald-500', localImage: './gpt.jpg' },
+            { id: 'trueid', name: 'TrueID', color: 'bg-red-500', text: 'text-red-600 dark:text-red-500', localImage: './trueid.jpg' },
+            { id: 'youku', name: 'Youku', color: 'bg-cyan-600', text: 'text-cyan-600 dark:text-cyan-500', localImage: './youku.jpg' }
         ];
 
         let activeService = null;
@@ -205,7 +197,6 @@
                 const delay = index * 0.1;
                 return `
                     <button onclick="goToService('${srv.id}')" class="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 rounded-2xl p-4 flex items-center space-x-4 shadow-sm dark:shadow-none hover:shadow-md transition-all duration-300 active:scale-95 animate-slideUpFade opacity-0" style="animation-delay: ${delay}s">
-                        <!-- ปรับขอบโค้ง ซูมภาพ 110% และนำ Padding ออก -->
                         <div class="w-14 h-14 rounded-xl bg-neutral-100 dark:bg-neutral-800 overflow-hidden flex-shrink-0 border border-neutral-200 dark:border-neutral-700/50 p-0 relative">
                             <img src="${srv.localImage}" alt="${srv.name}" class="w-full h-full object-cover transform scale-110" 
                                  onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
@@ -231,7 +222,6 @@
             const screenHome = document.getElementById('screen-home');
             const screenService = document.getElementById('screen-service');
             const backBtn = document.getElementById('back-btn');
-            const bgGlow = document.getElementById('bg-glow');
 
             screenHome.classList.add('content-hidden');
 
@@ -242,8 +232,6 @@
                 updateMainLogo();
                 updateButton();
                 renderOTPList();
-
-                bgGlow.className = `absolute top-[-50px] left-1/2 -translate-x-1/2 w-[90vw] max-w-[600px] h-[400px] opacity-15 dark:opacity-25 blur-[80px] dark:blur-[100px] rounded-full pointer-events-none transition-all duration-1000 ease-in-out z-0 ${activeService.glow}`;
                 
                 setTimeout(() => {
                     screenService.classList.remove('content-hidden');
@@ -260,7 +248,6 @@
             const screenHome = document.getElementById('screen-home');
             const screenService = document.getElementById('screen-service');
             const backBtn = document.getElementById('back-btn');
-            const bgGlow = document.getElementById('bg-glow');
 
             // เคลียร์ข้อมูลการกรอก
             document.getElementById('email-input').value = '';
@@ -274,8 +261,6 @@
             setTimeout(() => {
                 screenService.classList.add('hidden');
                 screenHome.classList.remove('hidden');
-                
-                bgGlow.className = `absolute top-[-50px] left-1/2 -translate-x-1/2 w-[90vw] max-w-[600px] h-[400px] opacity-15 dark:opacity-25 blur-[80px] dark:blur-[100px] rounded-full pointer-events-none transition-all duration-1000 ease-in-out z-0 bg-neutral-400 dark:bg-neutral-800`;
                 
                 setTimeout(() => {
                     screenHome.classList.remove('content-hidden');
@@ -300,8 +285,9 @@
             const btn = document.getElementById('fetch-btn');
             
             if (isLoading) {
+                // สถานะกำลังโหลด
                 btn.disabled = true;
-                btn.className = "w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-sm mb-8 bg-neutral-200 dark:bg-neutral-800/80 text-neutral-500 cursor-not-allowed border border-neutral-200 dark:border-neutral-700 backdrop-blur-sm tracking-wide";
+                btn.className = "w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 mb-8 bg-neutral-200 dark:bg-neutral-800/80 text-neutral-500 cursor-not-allowed dark:border dark:border-neutral-700 tracking-wide";
                 btn.innerHTML = `
                     <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-neutral-500 dark:text-neutral-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -310,13 +296,15 @@
                     กำลังเชื่อมต่อเซิร์ฟเวอร์...
                 `;
             } else if (cooldown > 0) {
+                // สถานะ Cooldown นับถอยหลัง (สีเทาแบบในรูป)
                 btn.disabled = true;
-                btn.className = "w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-sm mb-8 bg-neutral-200 dark:bg-neutral-800/80 text-neutral-500 cursor-not-allowed border border-neutral-200 dark:border-neutral-700 backdrop-blur-sm tracking-wide";
+                btn.className = "w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 mb-8 bg-neutral-200 dark:bg-neutral-800/80 text-neutral-500 cursor-not-allowed dark:border dark:border-neutral-700 tracking-wide";
                 btn.innerHTML = `
                     <svg class="w-5 h-5 mr-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     ลองใหม่ใน ${cooldown} วินาที
                 `;
             } else {
+                // สถานะปุ่มพร้อมกด
                 btn.disabled = false;
                 btn.className = `w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-[0_10px_20px_rgba(0,0,0,0.1)] dark:shadow-lg mb-8 ${activeService.color} text-white hover:opacity-90 hover:scale-[1.02] active:scale-95 group-hover:shadow-[0_10px_25px_rgba(0,0,0,0.2)] dark:group-hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] tracking-wide`;
                 btn.innerHTML = `
@@ -328,7 +316,7 @@
 
         let cooldownTimerId;
         function startCooldown() {
-            cooldown = 30;
+            cooldown = 15; // ปรับเวลาเป็น 15 วินาที
             updateButton();
             
             clearInterval(cooldownTimerId);
@@ -346,7 +334,6 @@
             const deviceInput = document.getElementById('device-input').value.trim();
             const errorMsg = document.getElementById('error-message');
             
-            // เช็คว่ากรอกครบทั้ง 2 ช่องหรือไม่
             if (!emailInput || !deviceInput) {
                 errorMsg.classList.remove('opacity-0');
                 errorMsg.classList.add('opacity-100');
@@ -410,7 +397,6 @@
                 <div class="bg-white dark:bg-neutral-900/80 backdrop-blur-md border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer shadow-sm dark:shadow-none hover:shadow-md animate-slideUpFade opacity-0" style="animation-delay: ${animationDelay}s" onclick="toggleCard(${item.id})">
                     
                     <div class="p-4 flex items-start gap-4">
-                        <!-- ปรับขอบโค้ง ซูมภาพ 110% และนำ Padding ออก -->
                         <div class="w-12 h-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center p-0 border border-neutral-200 dark:border-neutral-700/50 transition-all duration-500 overflow-hidden relative ${item.isExpired ? 'opacity-50 grayscale' : ''}">
                             <img src="${activeService.localImage}" alt="logo" class="w-full h-full object-cover transform scale-110" 
                                  onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
