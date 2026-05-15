@@ -70,8 +70,8 @@
             
             <!-- Logo Section -->
             <div id="main-logo-container" class="w-28 h-28 rounded-3xl mb-6 flex items-center justify-center shadow-2xl transition-all duration-500 bg-neutral-900 border border-neutral-800 p-3 z-10 relative">
-                <!-- ตั้งค่า onerror เผื่อลูกค้ายังไม่ได้สร้างโฟลเดอร์ assets ระบบจะได้ไม่โชว์ไอคอนรูปแตก -->
-                <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-contain drop-shadow-md transition-transform duration-500" 
+                <!-- ดึงรูปจากโฟลเดอร์เดียวกับโค้ด -->
+                <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover rounded-xl drop-shadow-md transition-transform duration-500" 
                      onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
             </div>
 
@@ -118,11 +118,11 @@
 
     <!-- JavaScript สำหรับควบคุมการทำงานทั้งหมด -->
     <script>
-        // --- 1. ข้อมูลตั้งต้น (อ้างอิงไฟล์รูปในเครื่องโฟลเดอร์ assets) ---
+        // --- 1. ข้อมูลตั้งต้น (อ้างอิงไฟล์รูปในระดับเดียวกับ index.html) ---
         const SERVICES = [
-            { id: 'netflix', name: 'Netflix', color: 'bg-red-600', text: 'text-red-500', shadow: 'shadow-red-600/40', glow: 'bg-red-600', localImage: './assets/netflix.png' },
-            { id: 'disney', name: 'Disney+', color: 'bg-blue-600', text: 'text-blue-500', shadow: 'shadow-blue-600/40', glow: 'bg-blue-600', localImage: './assets/disney.png' },
-            { id: 'chatgpt', name: 'ChatGPT', color: 'bg-emerald-600', text: 'text-emerald-500', shadow: 'shadow-emerald-600/40', glow: 'bg-emerald-600', localImage: './assets/chatgpt.png' }
+            { id: 'netflix', name: 'Netflix', color: 'bg-red-600', text: 'text-red-500', shadow: 'shadow-red-600/40', glow: 'bg-red-600', localImage: './netflix.jpg' },
+            { id: 'disney', name: 'Disney+', color: 'bg-blue-600', text: 'text-blue-500', shadow: 'shadow-blue-600/40', glow: 'bg-blue-600', localImage: './disney.jpg' },
+            { id: 'chatgpt', name: 'ChatGPT', color: 'bg-emerald-600', text: 'text-emerald-500', shadow: 'shadow-emerald-600/40', glow: 'bg-emerald-600', localImage: './gpt.jpg' }
         ];
 
         let activeService = SERVICES[0];
@@ -175,7 +175,7 @@
                 
                 return `
                     <button onclick="setActiveService('${srv.id}')" class="${baseClasses} ${activeClasses}">
-                        <img src="${srv.localImage}" alt="${srv.name}" class="w-4 h-4 object-contain transition-all duration-500 ${imgStyle}" 
+                        <img src="${srv.localImage}" alt="${srv.name}" class="w-4 h-4 object-cover rounded-sm transition-all duration-500 ${imgStyle}" 
                              onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
                         <span>${srv.name}</span>
                     </button>
@@ -306,8 +306,8 @@
                 <div class="bg-neutral-900/80 backdrop-blur-md border border-neutral-800 hover:border-neutral-700 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer animate-slideUpFade opacity-0" style="animation-delay: ${animationDelay}s" onclick="toggleCard(${item.id})">
                     
                     <div class="p-4 flex items-start gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-neutral-800 flex items-center justify-center p-2.5 border border-neutral-700/50 transition-all duration-500 ${item.isExpired ? 'opacity-40 grayscale' : ''}">
-                            <img src="${activeService.localImage}" alt="logo" class="w-full h-full object-contain" 
+                        <div class="w-12 h-12 rounded-xl bg-neutral-800 flex items-center justify-center p-1.5 border border-neutral-700/50 transition-all duration-500 ${item.isExpired ? 'opacity-40 grayscale' : ''}">
+                            <img src="${activeService.localImage}" alt="logo" class="w-full h-full object-cover rounded-lg" 
                                  onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
                         </div>
                         
@@ -400,4 +400,4 @@
 
     </script>
 </body>
-</html>
+</html>`
