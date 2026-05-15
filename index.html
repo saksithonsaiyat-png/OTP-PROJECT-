@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTP Service Receiver</title>
+    
+    <!-- นำเข้าฟอนต์ Kanit -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- นำเข้า Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- ตั้งค่า Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Kanit', 'sans-serif'],
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'scale(0.95)' },
+                            '100%': { opacity: '1', transform: 'scale(1)' },
+                        }
+                    },
+                    animation: {
+                        fadeIn: 'fadeIn 0.4s ease-out forwards',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Kanit', sans-serif; }
+        /* ซ่อน Scrollbar สำหรับแถบเมนูแนวนอน */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-neutral-950 text-white min-h-screen selection:bg-white/30 flex flex-col items-center">
+
+    <div class="w-full max-w-md p-4 min-h-screen flex flex-col relative">
+        
+        <!-- Header / Tabs -->
+        <header id="tabs-container" class="flex justify-center space-x-2 py-4 mb-6 overflow-x-auto no-scrollbar">
+            <!-- สร้างผ่าน JavaScript -->
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col items-center">
+            
+            <!-- Logo Section -->
+            <div id="main-logo-container" class="w-28 h-28 rounded-3xl mb-6 flex items-center justify-center shadow-2xl transition-all duration-500 bg-neutral-900 border border-neutral-800 p-4">
+                <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-contain animate-fadeIn" />
+            </div>
+
+            <h1 class="text-2xl font-semibold mb-2 text-center">
+                OTP <span id="main-title-text" class=""></span>
+            </h1>
+            <p class="text-neutral-400 text-sm mb-8 text-center">
+                กรอกอีเมลที่ใช้สั่งซื้อเพื่อรับรหัสยืนยันตัวตน
+            </p>
+
+            <!-- Input Box -->
+            <div class="w-full relative mb-1">
+                <input
+                    type="email"
+                    id="email-input"
+                    placeholder="example@gmail.com"
+                    class="w-full bg-neutral-900 border border-neutral-700 text-white rounded-2xl px-5 py-4 outline-none focus:border-white transition-all placeholder-neutral-600 text-lg shadow-inner"
+                />
+            </div>
+            <!-- ข้อความแจ้งเตือนเมื่อไม่กรอกอีเมล -->
+            <div id="error-message" class="w-full text-red-500 text-sm pl-2 mb-4 h-5 opacity-0 transition-opacity">
+                * กรุณากรอกอีเมลก่อนดึงรหัสนะครับ
+            </div>
+
+            <!-- Action Button -->
+            <button id="fetch-btn" onclick="handleFetchOTP()" class="w-full py-4 rounded-2xl font-medium text-lg transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg mb-8">
+                <!-- สร้างผ่าน JavaScript -->
+            </button>
+
+            <!-- Divider -->
+            <div class="w-full flex items-center mb-6 opacity-30">
+                <div class="flex-1 border-t border-neutral-600"></div>
+                <span class="px-3 text-xs text-neutral-400">รายการข้อความ</span>
+                <div class="flex-1 border-t border-neutral-600"></div>
+            </div>
+
+            <!-- OTP List -->
+            <div id="otp-list-container" class="w-full space-y-3 pb-10">
+                <!-- สร้างผ่าน JavaScript -->
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JavaScript สำหรับควบคุมการทำงานทั้งหมด -->
+    <script>
+        // --- 1. ข้อมูลตั้งต้น ---
+        const SERVICES = [
+            { id: 'netflix', name: 'Netflix', color: 'bg-red-600', text: 'text-red-500', shadow: 'shadow-red-600/40', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Netflix_2015_N_logo.svg/1200px-Netflix_2015_N_logo.svg.png' },
+            { id: 'disney', name: 'Disney+', color: 'bg-blue-600', text: 'text-blue-500', shadow: 'shadow-blue-600/40', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Disney%2B_logo.svg/1200px-Disney%2B_logo.svg.png' },
+            { id: 'chatgpt', name: 'ChatGPT', color: 'bg-emerald-600', text: 'text-emerald-500', shadow: 'shadow-emerald-600/40', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/1024px-ChatGPT_logo.svg.png' }
+        ];
+
+        let activeService = SERVICES[0];
+        let cooldown = 0;
+        let isLoading = false;
+        let otpList = [
+            { id: 1, time: '10:45 น.', date: '15/05/2026', title: 'รหัสสำหรับเข้าใช้งานชั่วคราว', code: '845219', isExpired: false, service: 'netflix' },
+            { id: 2, time: '09:12 น.', date: '15/05/2026', title: 'การอัปเดตบัญชีของคุณ', code: '129482', isExpired: true, service: 'netflix' },
+        ];
+
+        // --- 2. ฟังก์ชันอัปเดต UI (ทำงานเหมือน React) ---
+        function renderUI() {
+            renderTabs();
+            updateMainLogo();
+            updateButton();
+            renderOTPList();
+        }
+
+        // อัปเดตแถบเมนู
+        function renderTabs() {
+            const container = document.getElementById('tabs-container');
+            container.innerHTML = SERVICES.map(srv => {
+                const isActive = activeService.id === srv.id;
+                const baseClasses = "px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 whitespace-nowrap flex items-center space-x-2 cursor-pointer";
+                const activeClasses = isActive ? "bg-white text-black shadow-lg scale-105" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700";
+                const imgStyle = isActive ? "" : "grayscale opacity-70";
+                
+                return `
+                    <button onclick="setActiveService('${srv.id}')" class="${baseClasses} ${activeClasses}">
+                        <img src="${srv.logoUrl}" alt="${srv.name}" class="w-4 h-4 object-contain ${imgStyle}" />
+                        <span>${srv.name}</span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        // เปลี่ยนบริการที่เลือก
+        function setActiveService(serviceId) {
+            activeService = SERVICES.find(s => s.id === serviceId);
+            
+            // เล่นแอนิเมชันโลโก้ใหม่
+            const img = document.getElementById('main-logo-img');
+            img.classList.remove('animate-fadeIn');
+            void img.offsetWidth; // Trigger reflow เพื่อให้แอนิเมชันเล่นซ้ำ
+            img.classList.add('animate-fadeIn');
+
+            renderUI();
+        }
+
+        // อัปเดตโลโก้หลักและชื่อ
+        function updateMainLogo() {
+            const logoContainer = document.getElementById('main-logo-container');
+            const logoImg = document.getElementById('main-logo-img');
+            const titleText = document.getElementById('main-title-text');
+
+            // รีเซ็ตคลาสแล้วใส่ใหม่
+            logoContainer.className = `w-28 h-28 rounded-3xl mb-6 flex items-center justify-center shadow-2xl transition-all duration-500 bg-neutral-900 border border-neutral-800 p-4 ${activeService.shadow}`;
+            logoImg.src = activeService.logoUrl;
+            
+            titleText.textContent = activeService.name;
+            titleText.className = activeService.text;
+        }
+
+        // อัปเดตปุ่มกดดึงข้อมูล
+        function updateButton() {
+            const btn = document.getElementById('fetch-btn');
+            
+            if (isLoading) {
+                btn.disabled = true;
+                btn.className = "w-full py-4 rounded-2xl font-medium text-lg transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg mb-8 bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700";
+                btn.innerHTML = `
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    กำลังดึงข้อมูล...
+                `;
+            } else if (cooldown > 0) {
+                btn.disabled = true;
+                btn.className = "w-full py-4 rounded-2xl font-medium text-lg transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg mb-8 bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700";
+                btn.innerHTML = `
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    ลองใหม่ใน ${cooldown} วินาที
+                `;
+            } else {
+                btn.disabled = false;
+                btn.className = `w-full py-4 rounded-2xl font-medium text-lg transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg mb-8 ${activeService.color} text-white hover:opacity-90 hover:scale-[1.02] active:scale-95`;
+                btn.innerHTML = `
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    ดึงข้อความ OTP ล่าสุด
+                `;
+            }
+        }
+
+        // จัดการวงจร Cooldown
+        let cooldownTimerId;
+        function startCooldown() {
+            cooldown = 30; // 30 วินาที
+            updateButton();
+            
+            clearInterval(cooldownTimerId);
+            cooldownTimerId = setInterval(() => {
+                cooldown -= 1;
+                updateButton();
+                if (cooldown <= 0) {
+                    clearInterval(cooldownTimerId);
+                }
+            }, 1000);
+        }
+
+        // ฟังก์ชันจำลองการดึงข้อมูลจาก Backend
+        function handleFetchOTP() {
+            const emailInput = document.getElementById('email-input').value;
+            const errorMsg = document.getElementById('error-message');
+            
+            if (!emailInput) {
+                errorMsg.classList.remove('opacity-0');
+                errorMsg.classList.add('opacity-100');
+                return;
+            }
+            errorMsg.classList.add('opacity-0');
+            errorMsg.classList.remove('opacity-100');
+
+            isLoading = true;
+            updateButton();
+
+            // จำลองการดึงข้อมูล 1.5 วินาที
+            setTimeout(() => {
+                const now = new Date();
+                const newOtp = {
+                    id: Date.now(),
+                    time: now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.',
+                    date: now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                    title: `รหัสเข้าใช้งาน ${activeService.name} ใหม่ล่าสุด`,
+                    code: Math.floor(100000 + Math.random() * 900000).toString(),
+                    isExpired: false,
+                    service: activeService.id
+                };
+
+                otpList.unshift(newOtp); // เพิ่มไว้บนสุด
+                isLoading = false;
+                renderOTPList();
+                startCooldown();
+            }, 1500);
+        }
+
+        // --- 3. การแสดงผลรายการ OTP ---
+        function renderOTPList() {
+            const container = document.getElementById('otp-list-container');
+            const filteredList = otpList.filter(otp => otp.service === activeService.id);
+
+            if (filteredList.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-neutral-500 py-10 bg-neutral-900/50 rounded-2xl border border-neutral-800/50 border-dashed">
+                        ยังไม่มีข้อความสำหรับบริการนี้
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredList.map(item => `
+                <div class="bg-neutral-900 border border-neutral-800 hover:border-neutral-700 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer" onclick="toggleCard(${item.id})">
+                    
+                    <!-- Card Header -->
+                    <div class="p-4 flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-neutral-800 flex items-center justify-center p-2 border border-neutral-700/50 ${item.isExpired ? 'opacity-40 grayscale' : ''}">
+                            <img src="${activeService.logoUrl}" alt="logo" class="w-full h-full object-contain" />
+                        </div>
+                        
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="text-sm font-medium ${item.isExpired ? 'text-neutral-500' : 'text-neutral-300'}">
+                                    ${item.date} ${item.time}
+                                </span>
+                                ${item.isExpired 
+                                    ? '<span class="px-2 py-0.5 bg-neutral-800 text-neutral-500 text-xs rounded-md">หมดอายุ</span>' 
+                                    : '<span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs rounded-md">ล่าสุด</span>'
+                                }
+                            </div>
+                            <p class="text-base ${item.isExpired ? 'text-neutral-600' : 'text-white'}">
+                                ${item.title}
+                            </p>
+                        </div>
+
+                        <div class="mt-2 text-neutral-500">
+                            <svg id="arrow-${item.id}" class="w-5 h-5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+                    </div>
+
+                    <!-- Card Body (Expandable) -->
+                    <div id="body-${item.id}" class="max-h-0 opacity-0 overflow-hidden transition-all duration-500 ease-in-out bg-black/40 border-t border-neutral-800/50">
+                        <div class="flex items-center justify-between py-5 px-4">
+                            <div>
+                                <span class="text-sm text-neutral-400 block mb-1">รหัสยืนยันของคุณคือ</span>
+                                <span class="text-4xl font-bold tracking-widest ${item.isExpired ? 'text-neutral-600' : 'text-white'}">
+                                    ${item.code}
+                                </span>
+                            </div>
+                            
+                            <button id="copy-btn-${item.id}" onclick="copyToClipboard(event, '${item.code}', ${item.id}, ${item.isExpired})" 
+                                class="px-4 py-2 rounded-xl flex items-center transition-all ${item.isExpired ? 'bg-neutral-800 text-neutral-600 cursor-not-allowed' : 'bg-white/10 text-white hover:bg-white/20'}"
+                                ${item.isExpired ? 'disabled' : ''}>
+                                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                คัดลอก
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ฟังก์ชันเปิด/ปิดการ์ด
+        function toggleCard(id) {
+            const body = document.getElementById(`body-${id}`);
+            const arrow = document.getElementById(`arrow-${id}`);
+            
+            if (body.classList.contains('max-h-0')) {
+                body.classList.remove('max-h-0', 'opacity-0');
+                body.classList.add('max-h-[200px]', 'opacity-100'); // กำหนดความสูงสูงสุดเผื่อไว้
+                arrow.classList.add('rotate-180');
+            } else {
+                body.classList.add('max-h-0', 'opacity-0');
+                body.classList.remove('max-h-[200px]', 'opacity-100');
+                arrow.classList.remove('rotate-180');
+            }
+        }
+
+        // ฟังก์ชันคัดลอกข้อความ
+        function copyToClipboard(event, code, id, isExpired) {
+            event.stopPropagation(); // ป้องกันไม่ให้การ์ดปิดเวลาคลิกปุ่ม
+            if (isExpired) return;
+
+            // วิธีการ Copy แบบเก่าที่ทำงานได้ดีบน iframe ของ Code Preview
+            const tempInput = document.createElement("input");
+            tempInput.value = code;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+
+            // เปลี่ยนสถานะปุ่ม
+            const btn = document.getElementById(`copy-btn-${id}`);
+            btn.className = "px-4 py-2 rounded-xl flex items-center transition-all bg-emerald-500/20 text-emerald-400";
+            btn.innerHTML = `
+                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                คัดลอกแล้ว
+            `;
+
+            // คืนค่าปุ่มกลับใน 2 วินาที
+            setTimeout(() => {
+                btn.className = "px-4 py-2 rounded-xl flex items-center transition-all bg-white/10 text-white hover:bg-white/20";
+                btn.innerHTML = `
+                    <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    คัดลอก
+                `;
+            }, 2000);
+        }
+
+        // Render ครั้งแรกเมื่อโหลดหน้าเว็บ
+        renderUI();
+
+    </script>
+</body>
+</html>
