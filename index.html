@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OTP Service Receiver</title>
     
-    <!-- นำเข้าฟอนต์ LINE Seed Sans TH -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@7/fonts/LineSeed/LineSeed.css" />
-    
     <!-- นำเข้า Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -19,6 +16,12 @@
                 extend: {
                     fontFamily: {
                         sans: ['"LINE Seed Sans TH"', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            blue: '#0044FF',
+                            orange: '#FF5500'
+                        }
                     },
                     keyframes: {
                         popIn: {
@@ -40,7 +43,28 @@
     </script>
 
     <style>
+        /* ดึงไฟล์ฟอนต์ LINE Seed Sans TH จากเซิร์ฟเวอร์ Official โดยตรง */
+        @font-face {
+            font-family: 'LINE Seed Sans TH';
+            src: url('https://cdn.jsdelivr.net/npm/@line/seed@1.0.0/app/fonts/TH/LINESeedSansTH_W_Rg.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'LINE Seed Sans TH';
+            src: url('https://cdn.jsdelivr.net/npm/@line/seed@1.0.0/app/fonts/TH/LINESeedSansTH_W_Bd.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'LINE Seed Sans TH';
+            src: url('https://cdn.jsdelivr.net/npm/@line/seed@1.0.0/app/fonts/TH/LINESeedSansTH_W_XBd.woff2') format('woff2');
+            font-weight: 800;
+            font-style: normal;
+        }
+
         body { font-family: 'LINE Seed Sans TH', sans-serif; }
+        
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
@@ -60,11 +84,23 @@
         
         <!-- Top Navigation Bar -->
         <div class="flex justify-between items-center py-4 mb-4 relative z-20">
-            <!-- ปุ่มกลับ -->
-            <button id="back-btn" onclick="goToHome()" class="absolute left-0 opacity-0 pointer-events-none flex items-center text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300">
-                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-                หน้าแรก
-            </button>
+            
+            <!-- มุมซ้ายบน: โลโก้ NWN หรือ ปุ่มกลับ (สลับกันแสดงผล) -->
+            <!-- ปรับขนาดคอนเทนเนอร์ให้กระชับขึ้น -->
+            <div class="relative flex items-center h-8 w-24">
+                <!-- โลโก้ NWN (ลดขนาดลงเหลือ text-[22px] และปรับ tracking) -->
+                <div id="main-brand-logo" class="absolute left-0 flex items-center text-[22px] font-extrabold tracking-tight transition-all duration-300 transform origin-left">
+                    <span class="text-black dark:text-white transition-colors duration-500">N</span>
+                    <span class="text-brand-blue">W</span>
+                    <span class="text-brand-orange">N</span>
+                </div>
+                
+                <!-- ปุ่มกลับ -->
+                <button id="back-btn" onclick="goToHome()" class="absolute left-0 opacity-0 pointer-events-none flex items-center text-sm font-bold text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300 transform -translate-x-4">
+                    <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                    หน้าแรก
+                </button>
+            </div>
 
             <!-- เมนูลิงก์มุมขวาบน -->
             <div class="flex items-center space-x-3 ml-auto">
@@ -222,8 +258,12 @@
             const screenHome = document.getElementById('screen-home');
             const screenService = document.getElementById('screen-service');
             const backBtn = document.getElementById('back-btn');
+            const mainBrandLogo = document.getElementById('main-brand-logo');
 
             screenHome.classList.add('content-hidden');
+
+            // เปลี่ยนโลโก้ NWN เป็นปุ่มกลับ (ปรับสเกลให้เล็กลงนิดหน่อยตอนซ่อน)
+            mainBrandLogo.classList.add('opacity-0', 'pointer-events-none', 'scale-90');
 
             setTimeout(() => {
                 screenHome.classList.add('hidden');
@@ -235,7 +275,7 @@
                 
                 setTimeout(() => {
                     screenService.classList.remove('content-hidden');
-                    backBtn.classList.remove('opacity-0', 'pointer-events-none');
+                    backBtn.classList.remove('opacity-0', 'pointer-events-none', '-translate-x-4');
                     isSwitchingScreen = false;
                 }, 50);
             }, 400);
@@ -248,6 +288,7 @@
             const screenHome = document.getElementById('screen-home');
             const screenService = document.getElementById('screen-service');
             const backBtn = document.getElementById('back-btn');
+            const mainBrandLogo = document.getElementById('main-brand-logo');
 
             // เคลียร์ข้อมูลการกรอก
             document.getElementById('email-input').value = '';
@@ -256,7 +297,9 @@
             document.getElementById('error-message').classList.add('opacity-0');
 
             screenService.classList.add('content-hidden');
-            backBtn.classList.add('opacity-0', 'pointer-events-none');
+            
+            // ซ่อนปุ่มกลับ แล้วโชว์โลโก้ NWN กลับมา
+            backBtn.classList.add('opacity-0', 'pointer-events-none', '-translate-x-4');
 
             setTimeout(() => {
                 screenService.classList.add('hidden');
@@ -264,6 +307,7 @@
                 
                 setTimeout(() => {
                     screenHome.classList.remove('content-hidden');
+                    mainBrandLogo.classList.remove('opacity-0', 'pointer-events-none', 'scale-90');
                     activeService = null;
                     isSwitchingScreen = false;
                 }, 50);
@@ -296,7 +340,7 @@
                     กำลังเชื่อมต่อเซิร์ฟเวอร์...
                 `;
             } else if (cooldown > 0) {
-                // สถานะ Cooldown นับถอยหลัง (สีเทาแบบในรูป)
+                // สถานะ Cooldown นับถอยหลัง (15 วินาที)
                 btn.disabled = true;
                 btn.className = "w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 mb-8 bg-neutral-200 dark:bg-neutral-800/80 text-neutral-500 cursor-not-allowed dark:border dark:border-neutral-700 tracking-wide";
                 btn.innerHTML = `
@@ -480,7 +524,7 @@
             setTimeout(() => {
                 btn.className = "px-4 py-2 rounded-xl flex items-center font-bold transition-all bg-neutral-200 dark:bg-white/10 text-neutral-700 dark:text-white hover:bg-neutral-300 dark:hover:bg-white/20 hover:scale-105 active:scale-95";
                 btn.innerHTML = `
-                    <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     คัดลอก
                 `;
             }, 2000);
