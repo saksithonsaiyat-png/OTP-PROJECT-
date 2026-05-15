@@ -86,13 +86,12 @@
         <div class="flex justify-between items-center py-4 mb-4 relative z-20">
             
             <!-- มุมซ้ายบน: โลโก้ NWN หรือ ปุ่มกลับ (สลับกันแสดงผล) -->
-            <!-- ปรับขนาดคอนเทนเนอร์ให้กระชับขึ้น -->
-            <div class="relative flex items-center h-8 w-24">
-                <!-- โลโก้ NWN (ลดขนาดลงเหลือ text-[22px] และปรับ tracking) -->
-                <div id="main-brand-logo" class="absolute left-0 flex items-center text-[22px] font-extrabold tracking-tight transition-all duration-300 transform origin-left">
-                    <span class="text-black dark:text-white transition-colors duration-500">N</span>
-                    <span class="text-brand-blue">W</span>
-                    <span class="text-brand-orange">N</span>
+            <div class="relative flex items-center h-10 w-28">
+                <!-- โลโก้ NWN (ขนาด 26px และตั้งค่าช่องไฟให้สมดุลพอดี ไม่ทับกัน) -->
+                <div id="main-brand-logo" class="absolute left-0 flex items-center text-[26px] font-extrabold tracking-tight gap-[1px] transition-all duration-300 transform origin-left">
+                    <span class="text-black dark:text-white transition-colors duration-500 leading-none">N</span>
+                    <span class="text-brand-blue leading-none">W</span>
+                    <span class="text-brand-orange leading-none">N</span>
                 </div>
                 
                 <!-- ปุ่มกลับ -->
@@ -262,7 +261,7 @@
 
             screenHome.classList.add('content-hidden');
 
-            // เปลี่ยนโลโก้ NWN เป็นปุ่มกลับ (ปรับสเกลให้เล็กลงนิดหน่อยตอนซ่อน)
+            // เปลี่ยนโลโก้ NWN เป็นปุ่มกลับ
             mainBrandLogo.classList.add('opacity-0', 'pointer-events-none', 'scale-90');
 
             setTimeout(() => {
