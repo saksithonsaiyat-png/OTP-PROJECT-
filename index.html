@@ -87,13 +87,25 @@
             
             <!-- มุมซ้ายบน: โลโก้ NWN หรือ ปุ่มกลับ (สลับกันแสดงผล) -->
             <div class="relative flex items-center h-10 w-28">
-                <!-- โลโก้ NWN (ขนาด 26px และตั้งค่าช่องไฟให้สมดุลพอดี ไม่ทับกัน) -->
-                <div id="main-brand-logo" class="absolute left-0 flex items-center text-[26px] font-extrabold tracking-tight gap-[1px] transition-all duration-300 transform origin-left">
-                    <span class="text-black dark:text-white transition-colors duration-500 leading-none">N</span>
-                    <span class="text-brand-blue leading-none">W</span>
-                    <span class="text-brand-orange leading-none">N</span>
-                </div>
                 
+                <!-- ========================================== -->
+                <!-- โลโก้ NWN (สลับ 2 รูป Light / Dark Mode) -->
+                <!-- ========================================== -->
+                <div id="main-brand-logo" class="absolute left-0 flex items-center transition-all duration-300 transform origin-left h-[30px] w-auto">
+                    
+                    <!-- 1. รูปสำหรับโหมดสว่าง (Light Mode) ตัว N จะเป็นสีดำ -->
+                    <!-- โชว์ตอน Light / ซ่อนตอน Dark -->
+                    <img src="./logo-light.png" alt="NWN Logo Light" class="h-full w-auto object-contain block dark:hidden" 
+                         onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
+
+                    <!-- 2. รูปสำหรับโหมดมืด (Dark Mode) ตัว N จะเป็นสีขาว -->
+                    <!-- ซ่อนตอน Light / โชว์ตอน Dark -->
+                    <img src="./logo-dark.png" alt="NWN Logo Dark" class="h-full w-auto object-contain hidden dark:block" 
+                         onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
+                         
+                </div>
+                <!-- ========================================== -->
+
                 <!-- ปุ่มกลับ -->
                 <button id="back-btn" onclick="goToHome()" class="absolute left-0 opacity-0 pointer-events-none flex items-center text-sm font-bold text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300 transform -translate-x-4">
                     <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
@@ -197,9 +209,10 @@
         // =========================================================
         // ⚙️ ตัวแปรสำหรับระบบหลังบ้าน (Backend Configuration)
         // =========================================================
+        // ✅ อัปเดตลิงก์ติดต่อและวิธีใช้งานตามที่แจ้งแล้วครับ
         const SYSTEM_CONFIG = {
-            lineContactUrl: "https://line.me/ti/p/~your_line_id", // ลิงก์ติดต่อเรา (LINE)
-            guideDriveUrl: "https://drive.google.com/drive/folders/your_folder_id" // ลิงก์วิธีใช้งาน (Google Drive)
+            lineContactUrl: "https://lin.ee/tNXgZoM", // ลิงก์ติดต่อเรา (LINE)
+            guideDriveUrl: "https://drive.google.com/drive/folders/1S0FGZFR58UJDFgG2FxLC1HdhGlQmM5h_" // ลิงก์วิธีใช้งาน (Google Drive)
         };
 
         document.getElementById('nav-contact').href = SYSTEM_CONFIG.lineContactUrl;
@@ -261,7 +274,7 @@
 
             screenHome.classList.add('content-hidden');
 
-            // เปลี่ยนโลโก้ NWN เป็นปุ่มกลับ
+            // ซ่อนรูปโลโก้ เพื่อเปลี่ยนเป็นปุ่มกลับ
             mainBrandLogo.classList.add('opacity-0', 'pointer-events-none', 'scale-90');
 
             setTimeout(() => {
@@ -297,7 +310,7 @@
 
             screenService.classList.add('content-hidden');
             
-            // ซ่อนปุ่มกลับ แล้วโชว์โลโก้ NWN กลับมา
+            // ซ่อนปุ่มกลับ
             backBtn.classList.add('opacity-0', 'pointer-events-none', '-translate-x-4');
 
             setTimeout(() => {
@@ -306,6 +319,7 @@
                 
                 setTimeout(() => {
                     screenHome.classList.remove('content-hidden');
+                    // โชว์โลโก้ NWN กลับมา
                     mainBrandLogo.classList.remove('opacity-0', 'pointer-events-none', 'scale-90');
                     activeService = null;
                     isSwitchingScreen = false;
@@ -328,7 +342,6 @@
             const btn = document.getElementById('fetch-btn');
             
             if (isLoading) {
-                // สถานะกำลังโหลด
                 btn.disabled = true;
                 btn.className = "w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 mb-8 bg-neutral-200 dark:bg-neutral-800/80 text-neutral-500 cursor-not-allowed dark:border dark:border-neutral-700 tracking-wide";
                 btn.innerHTML = `
@@ -339,7 +352,6 @@
                     กำลังเชื่อมต่อเซิร์ฟเวอร์...
                 `;
             } else if (cooldown > 0) {
-                // สถานะ Cooldown นับถอยหลัง (15 วินาที)
                 btn.disabled = true;
                 btn.className = "w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 mb-8 bg-neutral-200 dark:bg-neutral-800/80 text-neutral-500 cursor-not-allowed dark:border dark:border-neutral-700 tracking-wide";
                 btn.innerHTML = `
@@ -347,7 +359,6 @@
                     ลองใหม่ใน ${cooldown} วินาที
                 `;
             } else {
-                // สถานะปุ่มพร้อมกด
                 btn.disabled = false;
                 btn.className = `w-full py-4 rounded-2xl font-bold text-lg transition-all duration-500 flex items-center justify-center space-x-2 shadow-[0_10px_20px_rgba(0,0,0,0.1)] dark:shadow-lg mb-8 ${activeService.color} text-white hover:opacity-90 hover:scale-[1.02] active:scale-95 group-hover:shadow-[0_10px_25px_rgba(0,0,0,0.2)] dark:group-hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] tracking-wide`;
                 btn.innerHTML = `
@@ -359,7 +370,7 @@
 
         let cooldownTimerId;
         function startCooldown() {
-            cooldown = 15; // ปรับเวลาเป็น 15 วินาที
+            cooldown = 15;
             updateButton();
             
             clearInterval(cooldownTimerId);
