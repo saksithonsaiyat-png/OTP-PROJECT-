@@ -78,7 +78,8 @@
         }
     </style>
 </head>
-<body class="bg-[#f0f9f6] dark:bg-black text-neutral-900 dark:text-white min-h-screen selection:bg-neutral-300 dark:selection:bg-white/30 flex flex-col items-center relative overflow-x-hidden transition-colors duration-500">
+<!-- ✅ แก้ไขสีพื้นหลังให้เป็นขาวล้วน (bg-white) -->
+<body class="bg-white dark:bg-black text-neutral-900 dark:text-white min-h-screen selection:bg-neutral-300 dark:selection:bg-white/30 flex flex-col items-center relative overflow-x-hidden transition-colors duration-500">
 
     <div class="w-full max-w-md p-4 min-h-screen flex flex-col relative z-10">
         
@@ -86,21 +87,19 @@
         <div class="flex justify-between items-center py-4 mb-4 relative z-20">
             
             <!-- มุมซ้ายบน: โลโก้ NWN หรือ ปุ่มกลับ (สลับกันแสดงผล) -->
-            <div class="relative flex items-center h-10 w-28">
+            <div class="relative flex items-center h-10 w-32">
                 
                 <!-- ========================================== -->
                 <!-- โลโก้ NWN (สลับ 2 รูป Light / Dark Mode) -->
                 <!-- ========================================== -->
-                <!-- 👇 ปรับขนาดรูปโลโก้ที่นี่ครับ เปลี่ยน h-[30px] เป็นขนาดที่คุณต้องการได้เลย เช่น h-[40px] หรือ h-[25px] -->
-                <div id="main-brand-logo" class="absolute left-0 flex items-center transition-all duration-300 transform origin-left h-[200px] w-auto">
+                <!-- 👇 ปรับขนาดรูปโลโก้ที่นี่ครับ (h-[45px] กำลังสวย ไม่ใหญ่จนล้นจอแบบ 200px) -->
+                <div id="main-brand-logo" class="absolute left-0 flex items-center transition-all duration-300 transform origin-left h-[45px] w-auto">
                     
                     <!-- 1. รูปสำหรับโหมดสว่าง (Light Mode) ตัว N จะเป็นสีดำ -->
-                    <!-- โชว์ตอน Light / ซ่อนตอน Dark -->
                     <img src="./logo-light.png" alt="NWN Logo Light" class="h-full w-auto object-contain block dark:hidden" 
                          onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
 
                     <!-- 2. รูปสำหรับโหมดมืด (Dark Mode) ตัว N จะเป็นสีขาว -->
-                    <!-- ซ่อนตอน Light / โชว์ตอน Dark -->
                     <img src="./logo-dark.png" alt="NWN Logo Dark" class="h-full w-auto object-contain hidden dark:block" 
                          onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
                          
@@ -114,25 +113,41 @@
                 </button>
             </div>
 
-            <!-- เมนูลิงก์มุมขวาบน -->
-            <div class="flex items-center space-x-3 ml-auto">
-                <a id="nav-guide" href="#" target="_blank" class="text-sm font-bold text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors flex items-center">
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    วิธีใช้งาน
-                </a>
-                <a id="nav-contact" href="#" target="_blank" class="text-sm font-bold text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors flex items-center">
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                    ติดต่อเรา
-                </a>
+            <!-- ✅ มุมขวาบน: เมนู 3 ขีด (Hamburger Menu) -->
+            <div class="relative ml-auto">
                 
-                <!-- เส้นคั่น -->
-                <div class="w-[1px] h-4 bg-neutral-300 dark:bg-neutral-700"></div>
-
-                <!-- ปุ่มเปลี่ยนธีม -->
-                <button onclick="toggleTheme()" class="p-1.5 rounded-full bg-white dark:bg-neutral-900 shadow-sm dark:shadow-none border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300">
-                    <svg id="icon-sun" class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                    <svg id="icon-moon" class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                <!-- ปุ่ม 3 ขีด -->
+                <button id="hamburger-btn" onclick="toggleMenu(event)" class="p-2 rounded-xl text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
                 </button>
+
+                <!-- Dropdown เมนูที่ซ่อนอยู่ -->
+                <div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl border border-neutral-100 dark:border-neutral-800 opacity-0 pointer-events-none transform scale-95 transition-all duration-200 z-50 overflow-hidden">
+                    <div class="py-2">
+                        <a id="nav-guide" href="#" target="_blank" class="flex items-center px-4 py-3 text-sm font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                            <svg class="w-4 h-4 mr-3 text-neutral-500 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            วิธีใช้งาน
+                        </a>
+                        <a id="nav-contact" href="#" target="_blank" class="flex items-center px-4 py-3 text-sm font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                            <svg class="w-4 h-4 mr-3 text-neutral-500 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                            ติดต่อเรา
+                        </a>
+                        
+                        <!-- เส้นคั่น -->
+                        <div class="h-[1px] bg-neutral-100 dark:bg-neutral-800 my-1 mx-3"></div>
+
+                        <button onclick="toggleTheme(); toggleMenu(event);" class="w-full flex items-center px-4 py-3 text-sm font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left">
+                            <svg class="w-4 h-4 mr-3 text-neutral-500 dark:text-neutral-400 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                            <svg class="w-4 h-4 mr-3 text-neutral-500 dark:text-neutral-400 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                            
+                            <span class="dark:hidden">โหมดกลางคืน</span>
+                            <span class="hidden dark:inline">โหมดกลางวัน</span>
+                        </button>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -210,7 +225,6 @@
         // =========================================================
         // ⚙️ ตัวแปรสำหรับระบบหลังบ้าน (Backend Configuration)
         // =========================================================
-        // ✅ อัปเดตลิงก์ติดต่อและวิธีใช้งานตามที่แจ้งแล้วครับ
         const SYSTEM_CONFIG = {
             lineContactUrl: "https://lin.ee/tNXgZoM", // ลิงก์ติดต่อเรา (LINE)
             guideDriveUrl: "https://drive.google.com/drive/folders/1S0FGZFR58UJDFgG2FxLC1HdhGlQmM5h_" // ลิงก์วิธีใช้งาน (Google Drive)
@@ -234,10 +248,37 @@
         let isSwitchingScreen = false;
         let otpList = [];
 
-        // --- 2. ระบบ Light / Dark Mode ---
+        // --- 2. ระบบ Light / Dark Mode & Hamburger Menu ---
         function toggleTheme() {
             document.documentElement.classList.toggle('dark');
         }
+
+        // ฟังก์ชันเปิด/ปิด Hamburger Menu
+        let isMenuOpen = false;
+        function toggleMenu(event) {
+            if(event) event.stopPropagation(); // ป้องกันการกดทะลุ
+            const menu = document.getElementById('dropdown-menu');
+            isMenuOpen = !isMenuOpen;
+            
+            if (isMenuOpen) {
+                menu.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
+                menu.classList.add('opacity-100', 'pointer-events-auto', 'scale-100');
+            } else {
+                menu.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+                menu.classList.remove('opacity-100', 'pointer-events-auto', 'scale-100');
+            }
+        }
+
+        // ระบบคลิกนอกกรอบเพื่อปิดเมนู (Click outside to close)
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('dropdown-menu');
+            const btn = document.getElementById('hamburger-btn');
+            
+            if (isMenuOpen && !menu.contains(event.target) && !btn.contains(event.target)) {
+                toggleMenu(); // ปิดถ้ากดข้างนอก
+            }
+        });
+
 
         // --- 3. ระบบเปลี่ยนหน้าต่าง (Navigation) ---
         function initAppGrid() {
@@ -489,7 +530,7 @@
                             <button id="copy-btn-${item.id}" onclick="copyToClipboard(event, '${item.code}', ${item.id}, ${item.isExpired})" 
                                 class="px-4 py-2 rounded-xl flex items-center font-bold transition-all ${item.isExpired ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600 cursor-not-allowed' : 'bg-neutral-200 dark:bg-white/10 text-neutral-700 dark:text-white hover:bg-neutral-300 dark:hover:bg-white/20 hover:scale-105 active:scale-95'}"
                                 ${item.isExpired ? 'disabled' : ''}>
-                                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                                 คัดลอก
                             </button>
                         </div>
