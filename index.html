@@ -78,13 +78,13 @@
         }
     </style>
 </head>
-<!-- ✅ แก้ไขสีพื้นหลังให้เป็นขาวล้วน (bg-white) -->
 <body class="bg-white dark:bg-black text-neutral-900 dark:text-white min-h-screen selection:bg-neutral-300 dark:selection:bg-white/30 flex flex-col items-center relative overflow-x-hidden transition-colors duration-500">
 
     <div class="w-full max-w-md p-4 min-h-screen flex flex-col relative z-10">
         
         <!-- Top Navigation Bar -->
-        <div class="flex justify-between items-center py-4 mb-4 relative z-20">
+        <!-- ✅ เปลี่ยนจาก mb-4 เป็น mb-12 เพื่อดันเนื้อหาลงมาให้ห่างจากเมนูด้านบนมากขึ้น -->
+        <div class="flex justify-between items-center py-4 mb-12 relative z-20">
             
             <!-- มุมซ้ายบน: โลโก้ NWN หรือ ปุ่มกลับ (สลับกันแสดงผล) -->
             <div class="relative flex items-center h-10 w-32">
@@ -92,8 +92,8 @@
                 <!-- ========================================== -->
                 <!-- โลโก้ NWN (สลับ 2 รูป Light / Dark Mode) -->
                 <!-- ========================================== -->
-                <!-- 👇 ปรับขนาดรูปโลโก้ที่นี่ครับ (h-[45px] กำลังสวย ไม่ใหญ่จนล้นจอแบบ 200px) -->
-                <div id="main-brand-logo" class="absolute left-0 flex items-center transition-all duration-300 transform origin-left h-[45px] w-auto">
+                
+                <div id="main-brand-logo" class="absolute left-0 flex items-center transition-all duration-300 transform origin-left h-[700px] w-auto">
                     
                     <!-- 1. รูปสำหรับโหมดสว่าง (Light Mode) ตัว N จะเป็นสีดำ -->
                     <img src="./logo-light.png" alt="NWN Logo Light" class="h-full w-auto object-contain block dark:hidden" 
@@ -113,7 +113,7 @@
                 </button>
             </div>
 
-            <!-- ✅ มุมขวาบน: เมนู 3 ขีด (Hamburger Menu) -->
+            <!-- มุมขวาบน: เมนู 3 ขีด (Hamburger Menu) -->
             <div class="relative ml-auto">
                 
                 <!-- ปุ่ม 3 ขีด -->
@@ -166,7 +166,8 @@
         </div>
 
         <!-- ================= SCREEN 2: หน้าบริการ (ดึง OTP) ================= -->
-        <div id="screen-service" class="flex-1 flex flex-col items-center content-transition w-full hidden absolute top-[80px] left-0 w-full px-4 pb-10">
+        <!-- ✅ เปลี่ยนตำแหน่งหน้า Service ให้เลื่อนลงมารับกับเมนูด้านบนที่ขยับลงมา (เปลี่ยนจาก top-[80px] เป็น top-[130px]) -->
+        <div id="screen-service" class="flex-1 flex flex-col items-center content-transition w-full hidden absolute top-[130px] left-0 px-4 pb-10">
             
             <div id="main-logo-container" class="w-24 h-24 rounded-2xl mb-6 flex items-center justify-center transition-all duration-700 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-0 z-10 relative overflow-hidden shadow-sm">
                 <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover transform scale-110 transition-transform duration-500" 
