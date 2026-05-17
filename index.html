@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OTP Service Receiver</title>
     
-    <!-- ✅ โหลดฟอนต์ LINE Seed Sans TH จากเซิร์ฟเวอร์ที่เสถียรที่สุด -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@7/fonts/LineSeedSansTH/LineSeedSansTH.css">
-    
     <!-- นำเข้า Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -18,7 +15,8 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['"LINE Seed Sans TH"', 'sans-serif'],
+                        // ✅ ตั้งค่าให้เรียกใช้ LINE Seed ภาษาอังกฤษก่อน แล้วตามด้วยภาษาไทย
+                        sans: ['"LINE Seed Sans"', '"LINE Seed Sans TH"', 'sans-serif'],
                     },
                     colors: {
                         brand: {
@@ -46,7 +44,58 @@
     </script>
 
     <style>
-        body { font-family: 'LINE Seed Sans TH', sans-serif; }
+        /* ========================================================
+           ✅ ดึงไฟล์ฟอนต์ LINE Seed ของแท้จากเซิร์ฟเวอร์ออฟฟิเชียล
+           ======================================================== */
+        
+        /* 1. LINE Seed Sans (สำหรับภาษาอังกฤษ) */
+        @font-face {
+            font-family: 'LINE Seed Sans';
+            src: url('https://cdn.jsdelivr.net/npm/@line/seed@1.0.0/app/fonts/EN/LINESeedSans_W_Rg.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'LINE Seed Sans';
+            src: url('https://cdn.jsdelivr.net/npm/@line/seed@1.0.0/app/fonts/EN/LINESeedSans_W_Bd.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'LINE Seed Sans';
+            src: url('https://cdn.jsdelivr.net/npm/@line/seed@1.0.0/app/fonts/EN/LINESeedSans_W_XBd.woff2') format('woff2');
+            font-weight: 800;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        /* 2. LINE Seed Sans TH (สำหรับภาษาไทย) */
+        @font-face {
+            font-family: 'LINE Seed Sans TH';
+            src: url('https://cdn.jsdelivr.net/npm/@line/seed@1.0.0/app/fonts/TH/LINESeedSansTH_W_Rg.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'LINE Seed Sans TH';
+            src: url('https://cdn.jsdelivr.net/npm/@line/seed@1.0.0/app/fonts/TH/LINESeedSansTH_W_Bd.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'LINE Seed Sans TH';
+            src: url('https://cdn.jsdelivr.net/npm/@line/seed@1.0.0/app/fonts/TH/LINESeedSansTH_W_XBd.woff2') format('woff2');
+            font-weight: 800;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        /* นำมาใช้ร่วมกันทั้งหน้าเว็บ */
+        body { font-family: 'LINE Seed Sans', 'LINE Seed Sans TH', sans-serif; }
         
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -71,18 +120,14 @@
             <!-- มุมซ้ายบน: โลโก้ NWN หรือ ปุ่มกลับ (สลับกันแสดงผล) -->
             <div class="relative flex items-center h-10 w-32">
                 
-                <!-- ========================================== -->
                 <!-- โลโก้ NWN (สลับ 2 รูป Light / Dark Mode) -->
-                <!-- ========================================== -->
+                <!-- ✅ ขนาดโลโก้คงไว้ที่ 700px ตามที่คุณต้องการ -->
                 <div id="main-brand-logo" class="absolute left-0 flex items-center transition-all duration-300 transform origin-left h-[700px] w-auto">
-                    <!-- รูปสำหรับโหมดสว่าง (Light Mode) -->
                     <img src="./logo-light.png" alt="NWN Logo Light" class="h-full w-auto object-contain block dark:hidden" 
                          onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
-                    <!-- รูปสำหรับโหมดมืด (Dark Mode) -->
                     <img src="./logo-dark.png" alt="NWN Logo Dark" class="h-full w-auto object-contain hidden dark:block" 
                          onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI1MjUyIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4='"/>
                 </div>
-                <!-- ========================================== -->
 
                 <!-- ปุ่มกลับ -->
                 <button id="back-btn" onclick="goToHome()" class="absolute left-0 opacity-0 pointer-events-none flex items-center text-lg font-bold text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-white transition-all duration-300 transform -translate-x-4">
@@ -93,7 +138,6 @@
 
             <!-- มุมขวาบน: เมนู 3 ขีด (Hamburger Menu) -->
             <div class="relative ml-auto">
-                <!-- ปุ่ม 3 ขีด -->
                 <button id="hamburger-btn" onclick="toggleMenu(event)" class="p-2 rounded-xl text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors focus:outline-none">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16" />
@@ -112,7 +156,6 @@
                             ติดต่อเรา
                         </a>
                         
-                        <!-- เส้นคั่น -->
                         <div class="h-[1px] bg-neutral-100 dark:bg-neutral-800 my-1 mx-3"></div>
 
                         <button onclick="toggleTheme(); toggleMenu(event);" class="w-full flex items-center px-4 py-3 text-sm font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left">
@@ -340,7 +383,6 @@
             }, 400);
         }
 
-        // --- 4. อัปเดต UI ในหน้า Service ---
         function updateMainLogo() {
             const logoImg = document.getElementById('main-logo-img');
             const titleText = document.getElementById('main-title-text');
@@ -440,7 +482,6 @@
             }, 1500);
         }
 
-        // --- 5. การแสดงผลรายการ OTP ---
         function renderOTPList() {
             if (!activeService) return;
             const container = document.getElementById('otp-list-container');
