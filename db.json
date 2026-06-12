@@ -4,7 +4,7 @@
     "password": "1234"
   },
   "globalSettings": {
-    "disney": true,
+    "disney": false,
     "chatgpt": true,
     "trueid": true,
     "youku": true
@@ -51,6 +51,15 @@
     }
   ],
   "history": [
+    {
+      "time": "12/6/2569 22:08:56",
+      "dateStr": "12/6/2569",
+      "email": "saksithonsaiyat@gmail.com",
+      "device": "Com",
+      "service": "disney",
+      "system": "Gmail",
+      "otp": "875621"
+    },
     {
       "time": "12/6/2569 20:51:46",
       "dateStr": "12/6/2569",
@@ -149,6 +158,15 @@
     }
   ],
   "inbox": [
+    {
+      "id": "1781276936665",
+      "time": "12/6/2569 22:08:56",
+      "from": "no-reply@disney.com",
+      "to": "saksithonsaiyat@gmail.com",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ DISNEY",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน disney\nรหัส OTP ของคุณคือ: 875621",
+      "system": "Gmail"
+    },
     {
       "id": "1781272306014",
       "time": "12/6/2569 20:51:46",
