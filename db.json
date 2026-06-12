@@ -1,0 +1,167 @@
+{
+  "admin": {
+    "username": "admin",
+    "password": "1234"
+  },
+  "globalSettings": {
+    "disney": true,
+    "chatgpt": false,
+    "trueid": false,
+    "youku": false
+  },
+  "emails": [
+    {
+      "id": "1780835648661",
+      "email": "saksithonsaiyat@gmail.com",
+      "system": "Gmail",
+      "isActive": true,
+      "pin": "1234",
+      "services": {
+        "disney": true,
+        "chatgpt": true,
+        "trueid": true,
+        "youku": true
+      }
+    },
+    {
+      "id": "1780887041454",
+      "email": "saksithonsaiyat",
+      "system": "Gmail",
+      "isActive": true,
+      "pin": "1111",
+      "services": {
+        "disney": true,
+        "chatgpt": true,
+        "trueid": true,
+        "youku": true
+      }
+    }
+  ],
+  "history": [
+    {
+      "time": "11/6/2569 22:51:30",
+      "dateStr": "11/6/2569",
+      "email": "saksithonsaiyat@gmail.com",
+      "device": "Com",
+      "service": "disney",
+      "system": "Gmail",
+      "otp": "219424"
+    },
+    {
+      "time": "11/6/2569 21:01:29",
+      "dateStr": "11/6/2569",
+      "email": "saksithonsaiyat@gmail.com",
+      "device": "Com",
+      "service": "disney",
+      "system": "Gmail",
+      "otp": "333528"
+    },
+    {
+      "time": "11/6/2569 21:00:56",
+      "dateStr": "11/6/2569",
+      "email": "saksithonsaiyat@gmail.com",
+      "device": "Com",
+      "service": "disney",
+      "system": "Gmail",
+      "otp": "732456"
+    },
+    {
+      "time": "9/6/2569 21:44:02",
+      "dateStr": "9/6/2569",
+      "email": "saksithonsaiyat@gmail.com",
+      "device": "Com",
+      "service": "youku",
+      "system": "Gmail",
+      "otp": "424938"
+    },
+    {
+      "time": "8/6/2569 09:50:41",
+      "email": "saksithonsaiyat",
+      "device": "Com",
+      "service": "disney",
+      "system": "Gmail",
+      "otp": "635367"
+    },
+    {
+      "time": "8/6/2569 09:45:21",
+      "email": "saksithonsaiyat@gmail.com",
+      "device": "Com",
+      "service": "disney",
+      "system": "Gmail",
+      "otp": "752071"
+    },
+    {
+      "time": "7/6/2569 19:34:08",
+      "email": "saksithonsaiyat@gmail.com",
+      "device": "Com",
+      "service": "disney",
+      "system": "Gmail",
+      "otp": "872815"
+    }
+  ],
+  "inbox": [
+    {
+      "id": "1781193090047",
+      "time": "11/6/2569 22:51:30",
+      "from": "no-reply@disney.com",
+      "to": "saksithonsaiyat@gmail.com",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ DISNEY",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน disney\nรหัส OTP ของคุณคือ: 219424",
+      "system": "Gmail"
+    },
+    {
+      "id": "1781186489916",
+      "time": "11/6/2569 21:01:29",
+      "from": "no-reply@disney.com",
+      "to": "saksithonsaiyat@gmail.com",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ DISNEY",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน disney\nรหัส OTP ของคุณคือ: 333528",
+      "system": "Gmail"
+    },
+    {
+      "id": "1781186456467",
+      "time": "11/6/2569 21:00:56",
+      "from": "no-reply@disney.com",
+      "to": "saksithonsaiyat@gmail.com",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ DISNEY",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน disney\nรหัส OTP ของคุณคือ: 732456",
+      "system": "Gmail"
+    },
+    {
+      "id": "1781016242675",
+      "time": "9/6/2569 21:44:02",
+      "from": "no-reply@youku.com",
+      "to": "saksithonsaiyat@gmail.com",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ YOUKU",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน youku\nรหัส OTP ของคุณคือ: 424938",
+      "system": "Gmail"
+    },
+    {
+      "id": "1780887041469",
+      "time": "8/6/2569 09:50:41",
+      "from": "no-reply@disney.com",
+      "to": "saksithonsaiyat",
+      "subject": "DISNEY Verification Code",
+      "message": "รหัสยืนยัน OTP สำหรับ disney ของคุณคือ: 635367 (ดึงผ่าน Gmail)",
+      "system": "Gmail"
+    },
+    {
+      "id": "1780886722244",
+      "time": "8/6/2569 09:45:22",
+      "from": "no-reply@disney.com",
+      "to": "saksithonsaiyat@gmail.com",
+      "subject": "DISNEY Verification Code",
+      "message": "รหัสยืนยัน OTP สำหรับ disney ของคุณคือ: 752071 (ดึงผ่าน Gmail)",
+      "system": "Gmail"
+    },
+    {
+      "id": "1780835649192",
+      "time": "7/6/2569 19:34:09",
+      "from": "no-reply@disney.com",
+      "to": "saksithonsaiyat@gmail.com",
+      "subject": "DISNEY Verification Code",
+      "message": "รหัสยืนยัน OTP สำหรับ disney ของคุณคือ: 872815 (ดึงผ่าน Gmail)",
+      "system": "Gmail"
+    }
+  ]
+}

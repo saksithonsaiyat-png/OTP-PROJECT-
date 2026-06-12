@@ -1,0 +1,714 @@
+const express = require('express');
+const cors = require('cors'); // นำเข้าไลบรารี CORS เพื่อแก้ปัญหาบล็อกโดเมน
+const path = require('path');
+const fs = require('fs');
+const imaps = require('imap-simple');
+const simpleParser = require('mailparser').simpleParser;
+
+const app = express();
+const port = 3000;
+
+// ========================================================
+// ⚙️ ตั้งค่าบัญชีอีเมลหลักของร้าน (Maily.space)
+// ========================================================
+const emailConfig = {
+    imap: {
+        // ⚠️ แก้ไข Username และ Password ของคุณที่นี่
+        user: 'aisstream', // หรืออาจจะต้องใส่เป็น aisstream@maily.space ลองดูครับ
+        password: 'YOUR_PASSWORD', // <--- ลบคำนี้ออก แล้วใส่รหัสผ่าน Natthanan@ ของคุณลงไปแทน
+        host: 'mail.maily.space',
+        port: 993,
+        tls: true,
+        authTimeout: 15000,
+        tlsOptions: { rejectUnauthorized: false }
+    }
+};
+
+const SENDER_EMAILS = {
+    'disney': 'disneyplus@mail.disneyplus.com',
+    'chatgpt': 'noreply@openai.com',
+    'trueid': 'no-reply@trueid.net',
+    'youku': 'no-reply@youku.com'
+};
+
+async function getRealOTP(service, targetEmail) {
+    const senderEmail = SENDER_EMAILS[service];
+    if (!senderEmail) {
+        throw new Error('ไม่รองรับบริการนี้');
+    }
+
+    if (emailConfig.imap.password === 'YOUR_PASSWORD') {
+        console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ IMAP Password is not configured. Falling back to Mock OTP.`);
+        return null;
+    }
+
+    try {
+        console.log(`[${new Date().toLocaleTimeString()}] ⏳ Connecting IMAP to find OTP of ${service} for ${targetEmail}...`);
+        const connection = await imaps.connect(emailConfig);
+        await connection.openBox('INBOX');
+
+        const searchCriteria = [
+            'UNSEEN',
+            ['FROM', senderEmail],
+            ['TO', targetEmail]
+        ];
+
+        const fetchOptions = { bodies: ['HEADER', 'TEXT', ''], markSeen: true };
+        const messages = await connection.search(searchCriteria, fetchOptions);
+
+        if (messages.length === 0) {
+            connection.end();
+            console.log(`❌ No new OTP email found for ${targetEmail}`);
+            throw new Error('ยังไม่มีข้อความ OTP เข้ามา กรุณารอสักครู่แล้วลองใหม่');
+        }
+
+        const latestMessage = messages[messages.length - 1];
+        const allParts = latestMessage.parts.find(p => p.which === '');
+        const parsedMail = await simpleParser(allParts.body);
+        const emailBody = parsedMail.text || parsedMail.html || '';
+
+        connection.end();
+
+        const otpRegex = /\b\d{4,6}\b/;
+        const match = emailBody.match(otpRegex);
+
+        if (match) {
+            console.log(`✅ Found OTP: ${match[0]}`);
+            return match[0];
+        } else {
+            console.log(`❌ Found email but failed to extract OTP`);
+            throw new Error('พบอีเมลแต่ไม่สามารถดึงรหัสตัวเลขได้');
+        }
+    } catch (error) {
+        console.error('🔥 IMAP Error:', error.message);
+        throw new Error(error.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์อีเมลได้ โปรดตรวจสอบการตั้งค่า');
+    }
+}
+
+// เปิดใช้งาน CORS ให้ทุกโดเมนสามารถยิง API มาหาหลังบ้านได้
+app.use(cors({ origin: '*' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.static(__dirname));
+
+// ==========================================
+// ระบบจัดการฐานข้อมูล (db.json)
+// ==========================================
+const DB_FILE = path.join(__dirname, 'db.json');
+
+const defaultDB = {
+    admin: { username: "admin", password: "password" },
+    globalSettings: { disney: true, chatgpt: true, trueid: true, youku: true },
+    emails: [],
+    history: [],
+    inbox: []
+};
+
+function initDB() {
+    if (!fs.existsSync(DB_FILE)) fs.writeFileSync(DB_FILE, JSON.stringify(defaultDB, null, 2), 'utf8');
+}
+initDB();
+
+function getDB() {
+    try { return JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); }
+    catch (e) { return defaultDB; }
+}
+
+function saveDB(data) {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function logToInbox(email, service, code, system) {
+    const db = getDB();
+    const msg = {
+        id: Date.now().toString(),
+        time: new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }),
+        from: `no-reply@${service}.com`,
+        to: email,
+        subject: `รหัสยืนยัน OTP ของคุณสำหรับ ${service.toUpperCase()}`,
+        message: `คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน ${service}\nรหัส OTP ของคุณคือ: ${code}`,
+        system: system
+    };
+    db.inbox.unshift(msg);
+    saveDB(db);
+}
+
+// ==========================================
+// การทำ Routing หน้าเว็บหลัก
+// ==========================================
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// ==========================================
+// API หน้าบ้าน (ระบบขอ OTP ของลูกค้า)
+// ==========================================
+app.get('/api/get-otp', async (req, res) => {
+    const { email, service, device, systemType, pin } = req.query;
+    const db = getDB();
+
+    // เช็คการปิดระบบรายแอป (Global Setting)
+    if (!db.globalSettings[service]) {
+        return res.status(400).json({ success: false, error: "ระบบปิดให้บริการแอปพลิเคชันนี้ชั่วคราว" });
+    }
+
+    // ค้นหาอีเมลในระบบ
+    let userEmail = db.emails.find(e => e.email === email && e.system === systemType);
+    if (!userEmail) {
+        // ถ้ายังไม่มีอีเมลในระบบ ให้เพิ่มอัตโนมัติ
+        userEmail = {
+            id: Date.now().toString(), email: email, system: systemType, isActive: true, pin: "",
+            services: { disney: true, chatgpt: true, trueid: true, youku: true }
+        };
+        db.emails.push(userEmail);
+        saveDB(db);
+    }
+
+    // เช็คสถานะการให้บริการของอีเมลนี้
+    if (!userEmail.isActive) return res.status(400).json({ success: false, error: "อีเมลนี้ถูกระงับการให้บริการชั่วคราว" });
+    if (!userEmail.services[service]) return res.status(400).json({ success: false, error: `อีเมลนี้ไม่ได้เปิดใช้งานแอปพลิเคชัน ${service}` });
+
+    // เช็ครหัส PIN (ถ้ามีการตั้งไว้)
+    if (userEmail.pin && userEmail.pin !== "") {
+        if (!pin) return res.json({ success: false, requirePin: true });
+        if (pin !== userEmail.pin) return res.status(400).json({ success: false, error: "รหัส PIN ความปลอดภัยไม่ถูกต้อง" });
+    }
+
+    let otpCode;
+    try {
+        const realOtp = await getRealOTP(service, email);
+        if (realOtp) {
+            otpCode = realOtp;
+        } else {
+            // Fallback to mock/random OTP
+            otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        }
+    } catch (err) {
+        return res.status(400).json({ success: false, error: err.message });
+    }
+
+    const timeNow = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+    const dateNow = new Date().toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' });
+
+    // บันทึกประวัติและกล่องข้อความ
+    db.history.unshift({ time: timeNow, dateStr: dateNow, email, device: device || 'ไม่ระบุ', service, system: systemType, otp: otpCode });
+    saveDB(db);
+    logToInbox(email, service, otpCode, systemType);
+
+    res.json({ success: true, code: otpCode });
+});
+
+// ==========================================
+// API แอดมินจัดการหลังบ้าน
+// ==========================================
+app.post('/api/admin/login', (req, res) => {
+    const { username, password } = req.body;
+    const db = getDB();
+    if (username === db.admin.username && password === db.admin.password) res.json({ success: true });
+    else res.json({ success: false });
+});
+
+app.get('/api/admin/data', (req, res) => { res.json(getDB()); });
+
+app.post('/api/admin/save-settings', (req, res) => {
+    const db = getDB(); db.globalSettings = req.body.settings;
+    saveDB(db); res.json({ success: true });
+});
+
+app.post('/api/admin/update-admin', (req, res) => {
+    const db = getDB(); db.admin.username = req.body.username; db.admin.password = req.body.password;
+    saveDB(db); res.json({ success: true });
+});
+
+app.post('/api/admin/update-email', (req, res) => {
+    const db = getDB(); const idx = db.emails.findIndex(e => e.id === req.body.id);
+    if (idx !== -1) { db.emails[idx] = req.body; saveDB(db); }
+    res.json({ success: true });
+});
+
+app.post('/api/admin/add-email', (req, res) => {
+    const db = getDB();
+    const { email, system } = req.body;
+    if (!db.emails.find(e => e.email === email && e.system === system)) {
+        db.emails.push({
+            id: Date.now().toString(), email: email, system: system, isActive: true, pin: "",
+            services: { disney: true, chatgpt: true, trueid: true, youku: true }
+        });
+        saveDB(db);
+    }
+    res.json({ success: true });
+});
+
+app.post('/api/admin/delete-email', (req, res) => {
+    const db = getDB();
+    db.emails = db.emails.filter(e => e.id !== req.body.id);
+    saveDB(db); res.json({ success: true });
+});
+
+app.post('/api/admin/delete-inbox', (req, res) => {
+    const db = getDB(); db.inbox = db.inbox.filter(m => m.id !== req.body.id);
+    saveDB(db); res.json({ success: true });
+});
+
+// ==========================================
+// โค้ดหน้าเว็บแอดมิน (เขียนฝังใน index.js)
+// ==========================================
+app.get('/admin', (req, res) => {
+    res.send(`<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการหลังบ้าน (Admin Dashboard)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@latest/fonts/LINESeedSansTH/LINESeedSansTH.css" rel="stylesheet" />
+    <style>
+        body { font-family: 'LINE Seed Sans TH', sans-serif; background-color: #f3f4f6; }
+        .tab-btn.active { background-color: #e5e7eb; color: #111827; font-weight: 700; border-left: 4px solid #3b82f6; }
+    </style>
+</head>
+<body x-data="adminApp()">
+
+    <!-- หน้า Login -->
+    <div x-show="!isLoggedIn" class="min-h-screen flex items-center justify-center bg-gray-900">
+        <div class="bg-white p-10 rounded-2xl shadow-2xl w-96 text-center">
+            <div class="bg-blue-100 text-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg></div>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">ระบบจัดการหลังบ้าน</h2>
+            <input type="text" x-model="loginUser" placeholder="Username" class="w-full p-4 border border-gray-200 rounded-xl mb-4 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-left">
+            <input type="password" x-model="loginPass" placeholder="Password" class="w-full p-4 border border-gray-200 rounded-xl mb-6 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-left" @keyup.enter="login()">
+            <button @click="login()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all">เข้าสู่ระบบ</button>
+            <p x-show="loginError" class="text-red-500 text-sm mt-4 font-bold bg-red-50 py-2 rounded-lg">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!</p>
+            <a href="/" class="block mt-6 text-sm text-gray-500 hover:text-blue-500 hover:underline font-medium">กลับไปหน้าฝั่งลูกค้า</a>
+        </div>
+    </div>
+
+    <!-- หน้า Dashboard -->
+    <div x-show="isLoggedIn" style="display:none;" class="flex h-screen overflow-hidden">
+        
+        <!-- Sidebar Navigation -->
+        <div class="w-64 bg-white text-gray-700 flex flex-col shadow-lg border-r border-gray-200 z-20">
+            <div class="p-6 text-xl font-black text-center border-b border-gray-100 text-gray-900 flex items-center justify-center space-x-2">
+                <span><svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></span><span>Admin Panel</span>
+            </div>
+            <nav class="flex-1 py-4 flex flex-col space-y-1 bg-white">
+                <button @click="tab = 'dashboard'" :class="tab=='dashboard'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg><span>ภาพรวม / Dashboard</span></button>
+                <button @click="tab = 'emails'" :class="tab=='emails'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg><span>จัดการอีเมลทั้งหมด</span></button>
+                <button @click="tab = 'inbox'" :class="tab=='inbox'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-17.5 0V6.75A2.25 2.25 0 016.375 4.5h11.25a2.25 2.25 0 012.25 2.25v6.75m-17.625 0h-.375a2.25 2.25 0 00-2.25 2.25v1.5a2.25 2.25 0 002.25 2.25h19.5a2.25 2.25 0 002.25-2.25v-1.5a2.25 2.25 0 00-2.25-2.25h-.375" /></svg><span>กล่องจดหมายรวม</span></button>
+                <button @click="tab = 'history'" :class="tab=='history'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>ประวัติการทำรายการ</span></button>
+                <button @click="tab = 'settings'" :class="tab=='settings'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span>ตั้งค่าระบบหลังบ้าน</span></button>
+            </nav>
+            <div class="p-4 border-t border-gray-100 space-y-3 bg-white">
+                <a href="/" class="block w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-bold transition-colors text-center text-sm shadow-sm">มุมมองผู้ใช้งาน</a>
+                <button @click="logout()" class="block w-full bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition-colors shadow-sm">ออกจากระบบ</button>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 overflow-y-auto bg-gray-50 relative">
+            
+            <!-- Tab: Dashboard -->
+            <div x-show="tab === 'dashboard'" class="p-8 max-w-6xl mx-auto">
+                <h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg><span>ภาพรวมสถิติการใช้บริการ / Dashboard</span></h1>
+                
+                <h2 class="text-lg font-bold mb-4 text-gray-600">จำนวนอีเมลที่พร้อมให้บริการ</h2>
+                <div class="grid grid-cols-2 gap-6 mb-10">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <div class="text-gray-500 font-bold mb-1">อีเมลจาก Gmail เชื่อมต่อโดยตรง</div>
+                            <div class="text-4xl font-black text-gray-800" x-text="db.emails.filter(e=>e.system==='Gmail').length"></div>
+                        </div>
+                        <div class="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center text-3xl">G</div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <div class="text-gray-500 font-bold mb-1">อีเมลโดเมนจาก Maily Space</div>
+                            <div class="text-4xl font-black text-gray-800" x-text="db.emails.filter(e=>e.system==='MailySpace').length"></div>
+                        </div>
+                        <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-3xl">M</div>
+                    </div>
+                </div>
+
+                <h2 class="text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (วันนี้) <span class="font-normal text-sm" x-text="new Date().toLocaleDateString('th-TH')"></span></h2>
+                <div class="grid grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
+                        <div class="text-gray-400 font-bold text-sm">Disney+</div>
+                        <div class="text-4xl font-black text-blue-600 mt-2" x-text="countAppDaily('disney')"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
+                        <div class="text-gray-400 font-bold text-sm">ChatGPT</div>
+                        <div class="text-4xl font-black text-emerald-600 mt-2" x-text="countAppDaily('chatgpt')"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
+                        <div class="text-gray-400 font-bold text-sm">TrueID</div>
+                        <div class="text-4xl font-black text-red-600 mt-2" x-text="countAppDaily('trueid')"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
+                        <div class="text-gray-400 font-bold text-sm">Youku</div>
+                        <div class="text-4xl font-black text-sky-500 mt-2" x-text="countAppDaily('youku')"></div>
+                    </div>
+                </div>
+
+                <h2 class="text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (สัปดาห์นี้)</h2>
+                <div class="grid grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
+                        <div class="text-gray-400 font-bold text-sm">Disney+</div>
+                        <div class="text-4xl font-black text-blue-600 mt-2" x-text="countAppWeekly('disney')"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
+                        <div class="text-gray-400 font-bold text-sm">ChatGPT</div>
+                        <div class="text-4xl font-black text-emerald-600 mt-2" x-text="countAppWeekly('chatgpt')"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
+                        <div class="text-gray-400 font-bold text-sm">TrueID</div>
+                        <div class="text-4xl font-black text-red-600 mt-2" x-text="countAppWeekly('trueid')"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
+                        <div class="text-gray-400 font-bold text-sm">Youku</div>
+                        <div class="text-4xl font-black text-sky-500 mt-2" x-text="countAppWeekly('youku')"></div>
+                    </div>
+                </div>
+
+                <h2 class="text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (เดือนนี้)</h2>
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
+                        <div class="text-gray-400 font-bold text-sm">Disney+</div>
+                        <div class="text-4xl font-black text-blue-600 mt-2" x-text="countAppMonthly('disney')"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
+                        <div class="text-gray-400 font-bold text-sm">ChatGPT</div>
+                        <div class="text-4xl font-black text-emerald-600 mt-2" x-text="countAppMonthly('chatgpt')"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
+                        <div class="text-gray-400 font-bold text-sm">TrueID</div>
+                        <div class="text-4xl font-black text-red-600 mt-2" x-text="countAppMonthly('trueid')"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
+                        <div class="text-gray-400 font-bold text-sm">Youku</div>
+                        <div class="text-4xl font-black text-sky-500 mt-2" x-text="countAppMonthly('youku')"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Manage Emails -->
+            <div x-show="tab === 'emails'" class="p-8 max-w-7xl mx-auto">
+                <h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg><span>จัดการอีเมล Gmail / Domain</span></h1>
+                
+                <!-- แท็บแยกระบบอีเมล -->
+                <div class="flex space-x-2 mb-6 bg-white p-2 rounded-xl shadow-sm border border-gray-200 inline-flex">
+                    <button @click="emailTab = 'Gmail'" :class="emailTab=='Gmail'?'bg-red-500 text-white shadow-md':'bg-transparent text-gray-600 hover:bg-gray-100'" class="px-8 py-3 rounded-lg font-bold transition-all">อีเมลจาก Gmail</button>
+                    <button @click="emailTab = 'MailySpace'" :class="emailTab=='MailySpace'?'bg-blue-600 text-white shadow-md':'bg-transparent text-gray-600 hover:bg-gray-100'" class="px-8 py-3 rounded-lg font-bold transition-all">อีเมลโดเมนจาก Maily Space</button>
+                </div>
+ 
+                <!-- กล่องเพิ่มอีเมล และ ช่องค้นหา -->
+                <div class="grid grid-cols-5 gap-4 mb-6">
+                    <div class="col-span-3 flex space-x-2 bg-white p-4 rounded-xl shadow-sm border border-gray-200 items-center">
+                        <div class="flex-1">
+                            <label class="text-sm font-bold text-gray-600 block mb-1">เพิ่มอีเมล <span x-text="emailTab === 'Gmail' ? 'Gmail ใหม่' : 'Domain ใหม่'"></span></label>
+                            <input type="email" x-model="newEmail" placeholder="กรอกอีเมลที่ต้องการเพิ่ม" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 transition-all font-medium text-gray-800">
+                        </div>
+                        <button @click="addEmail()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-sm transition-all mt-6 flex items-center space-x-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg><span>เพิ่มข้อมูล</span></button>
+                    </div>
+                    <div class="col-span-2 flex flex-col justify-end bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <label class="text-sm font-bold text-gray-600 block mb-1">ค้นหาเมล</label>
+                        <input type="text" x-model="searchEmail" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-xl border border-gray-300 outline-none focus:border-blue-500 transition-all font-medium">
+                    </div>
+                </div>
+ 
+                <!-- ตารางอีเมล -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
+                            <tr>
+                                <th class="p-5 font-bold text-sm">บัญชีอีเมล</th>
+                                <th class="p-5 font-bold text-sm text-center">สถานะบริการ</th>
+                                <th class="p-5 font-bold text-sm text-center">จัดการบริการ</th>
+                                <th class="p-5 font-bold text-sm text-center">รหัส PIN ความปลอดภัย</th>
+                                <th class="p-5 font-bold text-sm text-center">จัดการลบ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="e in filteredEmails" :key="e.id">
+                                <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                    <td class="p-5 font-bold text-gray-800 text-lg" x-text="e.email"></td>
+                                    
+                                    <td class="p-5 text-center">
+                                        <button @click="e.isActive = !e.isActive; saveEmail(e)" 
+                                                :class="e.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'" 
+                                                class="px-4 py-2 rounded-full text-xs font-bold shadow-sm transition-all hover:scale-105 flex items-center mx-auto space-x-1">
+                                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+                                                <span x-text="e.isActive ? 'เปิดให้บริการ' : 'ปิดให้บริการ'"></span>
+                                        </button>
+                                    </td>
+                                    
+                                    <td class="p-5">
+                                        <div class="flex justify-center gap-2">
+                                            <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-blue-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all">Disney</button>
+                                            <button @click="e.services.chatgpt = !e.services.chatgpt; saveEmail(e)" :class="e.services.chatgpt?'bg-emerald-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all">GPT</button>
+                                            <button @click="e.services.trueid = !e.services.trueid; saveEmail(e)" :class="e.services.trueid?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all">TrueID</button>
+                                            <button @click="e.services.youku = !e.services.youku; saveEmail(e)" :class="e.services.youku?'bg-sky-500 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all">Youku</button>
+                                        </div>
+                                    </td>
+                                    
+                                    <td class="p-5">
+                                        <div class="flex justify-center items-center space-x-2">
+                                            <input type="text" x-model="e.pin" maxlength="6" placeholder="ไม่ตั้ง PIN" class="border border-gray-300 rounded-lg p-2 w-28 text-center font-bold tracking-widest text-sm outline-none focus:border-blue-500 bg-white">
+                                            <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-3 py-2 rounded-lg text-xs font-bold transition-all">บันทึก</button>
+                                        </div>
+                                    </td>
+                                    
+                                    <td class="p-5 text-center">
+                                        <button @click="deleteEmail(e.id)" class="text-red-500 hover:text-red-700 p-2 rounded-lg transition-all mx-auto block">
+                                            <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="filteredEmails.length === 0">
+                                <td colspan="5" class="p-8 text-center text-gray-400 font-bold">ยังไม่มีรายชื่ออีเมลในระบบนี้</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab: Inbox -->
+            <div x-show="tab === 'inbox'" class="p-8 max-w-6xl mx-auto">
+                <h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-17.5 0V6.75A2.25 2.25 0 016.375 4.5h11.25a2.25 2.25 0 012.25 2.25v6.75m-17.625 0h-.375a2.25 2.25 0 00-2.25 2.25v1.5a2.25 2.25 0 002.25 2.25h19.5a2.25 2.25 0 002.25-2.25v-1.5a2.25 2.25 0 00-2.25-2.25h-.375" /></svg><span>กล่องจดหมาย (รวมทั้งหมด)</span></h1>
+                
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
+                    <input type="text" x-model="searchInbox" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-lg outline-none font-medium text-gray-700">
+                </div>
+ 
+                <div class="space-y-4">
+                    <template x-for="msg in filteredInbox" :key="msg.id">
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 flex flex-col relative hover:shadow-md transition-shadow">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="text-sm">
+                                    <div class="font-bold text-gray-800"><span class="text-blue-500 w-20 inline-block font-bold">ผู้ส่ง:</span> <span x-text="msg.from"></span></div>
+                                    <div class="font-bold text-gray-800"><span class="text-red-500 w-20 inline-block font-bold">ผู้รับ:</span> <span x-text="msg.to"></span></div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <div class="text-xs text-gray-500 font-bold bg-gray-100 px-3 py-1.5 rounded-lg flex items-center">
+                                        <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> <span x-text="msg.time"></span>
+                                    </div>
+                                    <!-- Delete button placed here -->
+                                    <button @click="deleteInbox(msg.id)" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-all" title="ลบข้อความนี้">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="text-sm font-bold text-gray-700 mb-2 border-t pt-3" x-text="'หัวข้ออีเมล: ' + msg.subject"></div>
+                            <div class="text-gray-600 bg-blue-50/50 p-4 rounded-xl border border-blue-100 font-medium text-sm" x-text="msg.message"></div>
+                        </div>
+                    </template>
+                    <div x-show="filteredInbox.length === 0" class="text-center text-gray-400 py-10 font-bold bg-white rounded-2xl border border-gray-200 border-dashed">ไม่พบข้อความอีเมล</div>
+                </div>
+            </div>
+
+            <!-- Tab: History -->
+            <div x-show="tab === 'history'" class="p-8 max-w-6xl mx-auto">
+                <h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>ประวัติการทำรายการ / ค้นหา OTP</span></h1>
+                
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
+                    <input type="text" x-model="searchHistory" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-lg outline-none font-medium text-gray-700">
+                </div>
+ 
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
+                            <tr><th class="p-5 font-bold text-sm">วันที่ / เวลา</th><th class="p-5 font-bold text-sm">บัญชีอีเมล</th><th class="p-5 font-bold text-sm text-blue-600">ชื่ออุปกรณ์ของลูกค้า</th><th class="p-5 font-bold text-sm text-center">บริการแอปพลิเคชัน</th><th class="p-5 font-bold text-sm text-center">รหัสที่แสดง ดึงได้</th></tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="h in filteredHistory">
+                                <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                    <td class="p-5 text-sm font-medium text-gray-500" x-text="h.time"></td>
+                                    <td class="p-5 font-bold text-gray-800" x-text="h.email"></td>
+                                    <td class="p-5 font-bold text-blue-600 bg-blue-50/30" x-text="h.device"></td>
+                                    <td class="p-5 font-bold text-gray-700 text-center capitalize" x-text="h.service"></td>
+                                    <td class="p-5 font-black tracking-widest text-xl text-emerald-600 text-center" x-text="h.otp"></td>
+                                </tr>
+                            </template>
+                            <tr x-show="filteredHistory.length === 0">
+                                <td colspan="5" class="p-8 text-center text-gray-400 font-bold">ไม่พบประวัติการค้นหา</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab: Settings -->
+            <div x-show="tab === 'settings'" class="p-8 max-w-4xl mx-auto">
+                <h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span>ตั้งค่าระบบหลังบ้าน</span></h1>
+                
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 mb-8">
+                    <h2 class="text-xl font-bold mb-6 text-gray-800">จัดการบริการ</h2>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                            <span class="font-bold text-gray-700 text-lg">Disney+</span>
+                            <button @click="db.globalSettings.disney = !db.globalSettings.disney; saveSettings()" 
+                                    :class="db.globalSettings.disney ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'" 
+                                    class="px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all">
+                                <span x-text="db.globalSettings.disney ? 'เปิดให้บริการ' : 'ปิดให้บริการ'"></span>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                            <span class="font-bold text-gray-700 text-lg">ChatGPT</span>
+                            <button @click="db.globalSettings.chatgpt = !db.globalSettings.chatgpt; saveSettings()" 
+                                    :class="db.globalSettings.chatgpt ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'" 
+                                    class="px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all">
+                                <span x-text="db.globalSettings.chatgpt ? 'เปิดให้บริการ' : 'ปิดให้บริการ'"></span>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                            <span class="font-bold text-gray-700 text-lg">TrueID</span>
+                            <button @click="db.globalSettings.trueid = !db.globalSettings.trueid; saveSettings()" 
+                                    :class="db.globalSettings.trueid ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'" 
+                                    class="px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all">
+                                <span x-text="db.globalSettings.trueid ? 'เปิดให้บริการ' : 'ปิดให้บริการ'"></span>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                            <span class="font-bold text-gray-700 text-lg">Youku</span>
+                            <button @click="db.globalSettings.youku = !db.globalSettings.youku; saveSettings()" 
+                                    :class="db.globalSettings.youku ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'" 
+                                    class="px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all">
+                                <span x-text="db.globalSettings.youku ? 'เปิดให้บริการ' : 'ปิดให้บริการ'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+ 
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 relative overflow-hidden">
+                    <h2 class="text-xl font-bold mb-6 text-gray-800">ตั้งค่าผู้ดูแลระบบ</h2>
+                    
+                    <div class="space-y-4 max-w-md">
+                        <div>
+                            <label class="text-sm font-bold text-gray-600 block mb-1">Username / ชื่อผู้ใช้งาน</label>
+                            <input type="text" x-model="newAdminUser" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-gray-800">
+                        </div>
+                        <div>
+                            <label class="text-sm font-bold text-gray-600 block mb-1">Password / รหัสผ่าน</label>
+                            <input type="text" x-model="newAdminPass" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-gray-800">
+                        </div>
+                        <div class="pt-2 flex items-center">
+                            <button @click="updateAdmin" class="bg-gray-800 hover:bg-black text-white font-bold py-3 px-8 rounded-xl shadow-md active:scale-95 transition-all">บันทึกการเปลี่ยนแปลงข้อมูล</button>
+                            <span x-show="adminSaved" class="text-emerald-600 ml-4 font-bold bg-emerald-50 px-3 py-1 rounded-lg">บันทึกสำเร็จแล้ว!</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('adminApp', () => ({
+                isLoggedIn: false, loginUser: '', loginPass: '', loginError: false,
+                tab: 'dashboard', emailTab: 'Gmail', searchEmail: '', searchInbox: '', searchHistory: '', newEmail: '',
+                db: { emails: [], history: [], inbox: [], globalSettings: {} },
+                newAdminUser: '', newAdminPass: '', adminSaved: false,
+
+                async login() {
+                    const res = await fetch('/api/admin/login', {
+                        method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({username: this.loginUser, password: this.loginPass})
+                    });
+                    const data = await res.json();
+                    if(data.success) { this.isLoggedIn = true; this.loginError = false; this.loadData(); }
+                    else { this.loginError = true; }
+                },
+                logout() { this.isLoggedIn = false; this.loginUser = ''; this.loginPass = ''; },
+                async loadData() {
+                    const res = await fetch('/api/admin/data');
+                    this.db = await res.json();
+                    this.newAdminUser = this.db.admin.username;
+                    this.newAdminPass = this.db.admin.password;
+                },
+                
+                countAppDaily(app) { 
+                    const today = new Date().toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' });
+                    return this.db.history.filter(h => h.service === app && (h.dateStr === today || (h.time && h.time.includes(today)))).length; 
+                },
+                parseDate(dateStr) {
+                    if (!dateStr) return new Date();
+                    const parts = dateStr.split(' ');
+                    const dateParts = parts[0].split('/');
+                    let day = parseInt(dateParts[0]);
+                    let month = parseInt(dateParts[1]) - 1;
+                    let year = parseInt(dateParts[2]);
+                    if (year > 2400) year -= 543;
+                    
+                    let hour = 0, minute = 0, second = 0;
+                    if (parts[1]) {
+                        const timeParts = parts[1].split(':');
+                        hour = parseInt(timeParts[0]) || 0;
+                        minute = parseInt(timeParts[1]) || 0;
+                        second = parseInt(timeParts[2]) || 0;
+                    }
+                    return new Date(year, month, day, hour, minute, second);
+                },
+                countAppWeekly(app) {
+                    const sevenDaysAgo = new Date();
+                    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                    return this.db.history.filter(h => h.service === app && this.parseDate(h.time) >= sevenDaysAgo).length;
+                },
+                countAppMonthly(app) {
+                    const thirtyDaysAgo = new Date();
+                    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                    return this.db.history.filter(h => h.service === app && this.parseDate(h.time) >= thirtyDaysAgo).length;
+                },
+                
+                get filteredEmails() {
+                    return this.db.emails.filter(e => e.system === this.emailTab && e.email.toLowerCase().includes(this.searchEmail.toLowerCase()));
+                },
+                async saveEmail(emailObj) {
+                    await fetch('/api/admin/update-email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(emailObj) });
+                },
+                async addEmail() {
+                    if (!this.newEmail) return;
+                    await fetch('/api/admin/add-email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: this.newEmail.trim(), system: this.emailTab }) });
+                    this.newEmail = ''; this.loadData();
+                },
+                async deleteEmail(id) {
+                    if (!confirm('ยืนยันการลบอีเมลนี้ออกจากระบบใช่หรือไม่?')) return;
+                    await fetch('/api/admin/delete-email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id}) });
+                    this.loadData();
+                },
+
+                get filteredInbox() {
+                    return this.db.inbox.filter(m => m.from.includes(this.searchInbox) || m.to.includes(this.searchInbox) || m.subject.includes(this.searchInbox) || m.message.includes(this.searchInbox));
+                },
+                async deleteInbox(id) {
+                    if(!confirm('ยืนยันการลบข้อความนี้?')) return;
+                    await fetch('/api/admin/delete-inbox', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id}) });
+                    this.loadData();
+                },
+
+                get filteredHistory() {
+                    return this.db.history.filter(h => h.email.toLowerCase().includes(this.searchHistory.toLowerCase()) || (h.device && h.device.toLowerCase().includes(this.searchHistory.toLowerCase())));
+                },
+
+                async saveSettings() {
+                    await fetch('/api/admin/save-settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({settings: this.db.globalSettings}) });
+                },
+                async updateAdmin() {
+                    await fetch('/api/admin/update-admin', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username: this.newAdminUser, password: this.newAdminPass}) });
+                    this.adminSaved = true; setTimeout(()=>this.adminSaved=false, 3000);
+                }
+            }))
+        })
+    </script>
+</body>
+</html>`);
+});
+
+app.listen(port, () => {
+    console.log(`===========================================`);
+    console.log(`🚀 Server และ Admin Panel เปิดทำงานแล้วที่พอร์ต ${port}!`);
+    console.log(`🌐 เข้าหน้าลูกค้าที่: http://localhost:${port}/`);
+    console.log(`⚙️ เข้าหน้าแอดมินที่: http://localhost:${port}/admin`);
+    console.log(`===========================================`);
+});
