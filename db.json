@@ -5,9 +5,9 @@
   },
   "globalSettings": {
     "disney": true,
-    "chatgpt": false,
-    "trueid": false,
-    "youku": false
+    "chatgpt": true,
+    "trueid": true,
+    "youku": true
   },
   "emails": [
     {
@@ -35,9 +35,58 @@
         "trueid": true,
         "youku": true
       }
+    },
+    {
+      "id": "1781272241788",
+      "email": "Saksit",
+      "system": "MailySpace",
+      "isActive": true,
+      "pin": "",
+      "services": {
+        "disney": true,
+        "chatgpt": true,
+        "trueid": true,
+        "youku": true
+      }
     }
   ],
   "history": [
+    {
+      "time": "12/6/2569 20:51:46",
+      "dateStr": "12/6/2569",
+      "email": "aisstream-b6wz67@shipx.sbs",
+      "device": "1",
+      "service": "disney",
+      "system": "MailySpace",
+      "otp": "952201"
+    },
+    {
+      "time": "12/6/2569 20:51:16",
+      "dateStr": "12/6/2569",
+      "email": "aisstream-b6wz67@shipx.sbs",
+      "device": "1",
+      "service": "disney",
+      "system": "MailySpace",
+      "otp": "467859"
+    },
+    {
+      "time": "12/6/2569 20:50:41",
+      "dateStr": "12/6/2569",
+      "email": "Saksit",
+      "device": "Telephone",
+      "service": "disney",
+      "system": "MailySpace",
+      "otp": "562819"
+    },
+    {
+      "time": "12/6/2569 20:40:39",
+      "dateStr": "12/6/2569",
+      "email": "saksithonsaiyat@gmail.com",
+      "device": "Com",
+      "service": "disney",
+      "system": "Gmail",
+      "otp": "236772"
+    },
     {
       "time": "11/6/2569 22:51:30",
       "dateStr": "11/6/2569",
@@ -100,6 +149,42 @@
     }
   ],
   "inbox": [
+    {
+      "id": "1781272306014",
+      "time": "12/6/2569 20:51:46",
+      "from": "no-reply@disney.com",
+      "to": "aisstream-b6wz67@shipx.sbs",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ DISNEY",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน disney\nรหัส OTP ของคุณคือ: 952201",
+      "system": "MailySpace"
+    },
+    {
+      "id": "1781272276476",
+      "time": "12/6/2569 20:51:16",
+      "from": "no-reply@disney.com",
+      "to": "aisstream-b6wz67@shipx.sbs",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ DISNEY",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน disney\nรหัส OTP ของคุณคือ: 467859",
+      "system": "MailySpace"
+    },
+    {
+      "id": "1781272241791",
+      "time": "12/6/2569 20:50:41",
+      "from": "no-reply@disney.com",
+      "to": "Saksit",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ DISNEY",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน disney\nรหัส OTP ของคุณคือ: 562819",
+      "system": "MailySpace"
+    },
+    {
+      "id": "1781271639722",
+      "time": "12/6/2569 20:40:39",
+      "from": "no-reply@disney.com",
+      "to": "saksithonsaiyat@gmail.com",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ DISNEY",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน disney\nรหัส OTP ของคุณคือ: 236772",
+      "system": "Gmail"
+    },
     {
       "id": "1781193090047",
       "time": "11/6/2569 22:51:30",

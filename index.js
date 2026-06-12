@@ -250,9 +250,6 @@ app.post('/api/admin/delete-inbox', (req, res) => {
     saveDB(db); res.json({ success: true });
 });
 
-// ==========================================
-// โค้ดหน้าเว็บแอดมิน (เขียนฝังใน index.js)
-// ==========================================
 app.get('/admin', (req, res) => {
     res.send(`<!DOCTYPE html>
 <html lang="th">
@@ -271,153 +268,171 @@ app.get('/admin', (req, res) => {
 <body x-data="adminApp()">
 
     <!-- หน้า Login -->
-    <div x-show="!isLoggedIn" class="min-h-screen flex items-center justify-center bg-gray-900">
-        <div class="bg-white p-10 rounded-2xl shadow-2xl w-96 text-center">
+    <div x-show="!isLoggedIn" class="min-h-screen flex items-center justify-center bg-gray-900 p-4">
+        <div class="bg-white p-6 md:p-10 rounded-2xl shadow-2xl w-full max-w-sm text-center">
             <div class="bg-blue-100 text-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg></div>
-            <h2 class="text-2xl font-bold mb-6 text-gray-800">ระบบจัดการหลังบ้าน</h2>
+            <h2 class="text-xl md:text-2xl font-bold mb-6 text-gray-800">ระบบจัดการหลังบ้าน</h2>
             <input type="text" x-model="loginUser" placeholder="Username" class="w-full p-4 border border-gray-200 rounded-xl mb-4 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-left">
             <input type="password" x-model="loginPass" placeholder="Password" class="w-full p-4 border border-gray-200 rounded-xl mb-6 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-left" @keyup.enter="login()">
-            <button @click="login()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all">เข้าสู่ระบบ</button>
+            <button @click="login()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-lg">เข้าสู่ระบบ</button>
             <p x-show="loginError" class="text-red-500 text-sm mt-4 font-bold bg-red-50 py-2 rounded-lg">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!</p>
             <a href="/" class="block mt-6 text-sm text-gray-500 hover:text-blue-500 hover:underline font-medium">กลับไปหน้าฝั่งลูกค้า</a>
         </div>
     </div>
 
     <!-- หน้า Dashboard -->
-    <div x-show="isLoggedIn" style="display:none;" class="flex h-screen overflow-hidden">
+    <div x-show="isLoggedIn" style="display:none;" class="flex flex-col md:flex-row h-screen overflow-hidden">
+        
+        <!-- Mobile Header Bar -->
+        <div class="md:hidden flex items-center justify-between p-4 bg-white border-b border-gray-200 z-30 shadow-sm w-full">
+            <button @click="mobileMenuOpen = !mobileMenuOpen" class="p-2 rounded-xl bg-gray-50 text-gray-700 hover:bg-gray-100 focus:outline-none">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </button>
+            <div class="text-xl font-black text-gray-900 flex items-center space-x-2">
+                <span>Admin Panel</span>
+            </div>
+            <div class="w-10"></div>
+        </div>
+
+        <!-- Mobile Sidebar Backdrop Overlay -->
+        <div x-show="mobileMenuOpen" @click="mobileMenuOpen = false" class="fixed inset-0 bg-black/55 z-40 md:hidden" style="display: none;" x-transition></div>
         
         <!-- Sidebar Navigation -->
-        <div class="w-64 bg-white text-gray-700 flex flex-col shadow-lg border-r border-gray-200 z-20">
+        <div :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
+             class="fixed md:static inset-y-0 left-0 w-64 bg-white text-gray-700 flex flex-col shadow-lg border-r border-gray-200 z-50 md:z-20 transform transition-transform duration-300 ease-in-out h-full">
             <div class="p-6 text-xl font-black text-center border-b border-gray-100 text-gray-900 flex items-center justify-center space-x-2">
                 <span><svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></span><span>Admin Panel</span>
             </div>
-            <nav class="flex-1 py-4 flex flex-col space-y-1 bg-white">
-                <button @click="tab = 'dashboard'" :class="tab=='dashboard'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg><span>ภาพรวม / Dashboard</span></button>
-                <button @click="tab = 'emails'" :class="tab=='emails'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg><span>จัดการอีเมลทั้งหมด</span></button>
-                <button @click="tab = 'inbox'" :class="tab=='inbox'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-17.5 0V6.75A2.25 2.25 0 016.375 4.5h11.25a2.25 2.25 0 012.25 2.25v6.75m-17.625 0h-.375a2.25 2.25 0 00-2.25 2.25v1.5a2.25 2.25 0 002.25 2.25h19.5a2.25 2.25 0 002.25-2.25v-1.5a2.25 2.25 0 00-2.25-2.25h-.375" /></svg><span>กล่องจดหมายรวม</span></button>
-                <button @click="tab = 'history'" :class="tab=='history'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>ประวัติการทำรายการ</span></button>
-                <button @click="tab = 'settings'" :class="tab=='settings'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span>ตั้งค่าระบบหลังบ้าน</span></button>
+            <nav class="flex-1 py-4 flex flex-col space-y-1 bg-white overflow-y-auto">
+                <button @click="tab = 'dashboard'; mobileMenuOpen = false" :class="tab=='dashboard'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg><span>ภาพรวม / Dashboard</span></button>
+                <button @click="tab = 'emails'; mobileMenuOpen = false" :class="tab=='emails'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg><span>จัดการอีเมลทั้งหมด</span></button>
+                <button @click="tab = 'inbox'; mobileMenuOpen = false" :class="tab=='inbox'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-17.5 0V6.75A2.25 2.25 0 016.375 4.5h11.25a2.25 2.25 0 012.25 2.25v6.75m-17.625 0h-.375a2.25 2.25 0 00-2.25 2.25v1.5a2.25 2.25 0 002.25 2.25h19.5a2.25 2.25 0 002.25-2.25v-1.5a2.25 2.25 0 00-2.25-2.25h-.375" /></svg><span>กล่องจดหมายรวม</span></button>
+                <button @click="tab = 'history'; mobileMenuOpen = false" :class="tab=='history'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>ประวัติการทำรายการ</span></button>
+                <button @click="tab = 'settings'; mobileMenuOpen = false" :class="tab=='settings'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span>ตั้งค่าระบบหลังบ้าน</span></button>
             </nav>
             <div class="p-4 border-t border-gray-100 space-y-3 bg-white">
                 <a href="/" class="block w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-bold transition-colors text-center text-sm shadow-sm">มุมมองผู้ใช้งาน</a>
-                <button @click="logout()" class="block w-full bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition-colors shadow-sm">ออกจากระบบ</button>
+                <button @click="logout(); mobileMenuOpen = false" class="block w-full bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition-colors shadow-sm">ออกจากระบบ</button>
             </div>
         </div>
-
+        
         <!-- Main Content Area -->
         <div class="flex-1 overflow-y-auto bg-gray-50 relative">
             
             <!-- Tab: Dashboard -->
-            <div x-show="tab === 'dashboard'" class="p-8 max-w-6xl mx-auto">
-                <h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg><span>ภาพรวมสถิติการใช้บริการ / Dashboard</span></h1>
+            <div x-show="tab === 'dashboard'" class="p-4 md:p-8 max-w-6xl mx-auto">
+                <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg><span>ภาพรวมสถิติการใช้บริการ / Dashboard</span></h1>
                 
-                <h2 class="text-lg font-bold mb-4 text-gray-600">จำนวนอีเมลที่พร้อมให้บริการ</h2>
-                <div class="grid grid-cols-2 gap-6 mb-10">
+                <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">จำนวนอีเมลที่พร้อมให้บริการ</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mb-10">
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
                         <div>
-                            <div class="text-gray-500 font-bold mb-1">อีเมลจาก Gmail เชื่อมต่อโดยตรง</div>
-                            <div class="text-4xl font-black text-gray-800" x-text="db.emails.filter(e=>e.system==='Gmail').length"></div>
+                            <div class="text-gray-500 font-bold mb-1 text-sm md:text-base">อีเมลจาก Gmail เชื่อมต่อโดยตรง</div>
+                            <div class="text-3xl md:text-4xl font-black text-gray-800" x-text="db.emails.filter(e=>e.system==='Gmail').length"></div>
                         </div>
-                        <div class="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center text-3xl">G</div>
+                        <div class="w-12 h-12 md:w-16 md:h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center text-2xl md:text-3xl">G</div>
                     </div>
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
                         <div>
-                            <div class="text-gray-500 font-bold mb-1">อีเมลโดเมนจาก Maily Space</div>
-                            <div class="text-4xl font-black text-gray-800" x-text="db.emails.filter(e=>e.system==='MailySpace').length"></div>
+                            <div class="text-gray-500 font-bold mb-1 text-sm md:text-base">อีเมลโดเมนจาก Maily Space</div>
+                            <div class="text-3xl md:text-4xl font-black text-gray-800" x-text="db.emails.filter(e=>e.system==='MailySpace').length"></div>
                         </div>
-                        <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-3xl">M</div>
+                        <div class="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-2xl md:text-3xl">M</div>
                     </div>
                 </div>
 
-                <h2 class="text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (วันนี้) <span class="font-normal text-sm" x-text="new Date().toLocaleDateString('th-TH')"></span></h2>
-                <div class="grid grid-cols-4 gap-4 mb-8">
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
-                        <div class="text-gray-400 font-bold text-sm">Disney+</div>
-                        <div class="text-4xl font-black text-blue-600 mt-2" x-text="countAppDaily('disney')"></div>
+                <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (วันนี้) <span class="font-normal text-sm" x-text="new Date().toLocaleDateString('th-TH')"></span></h2>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
+                        <div class="text-3xl md:text-4xl font-black text-blue-600 mt-2" x-text="countAppDaily('disney')"></div>
                     </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
-                        <div class="text-gray-400 font-bold text-sm">ChatGPT</div>
-                        <div class="text-4xl font-black text-emerald-600 mt-2" x-text="countAppDaily('chatgpt')"></div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">ChatGPT</div>
+                        <div class="text-3xl md:text-4xl font-black text-emerald-600 mt-2" x-text="countAppDaily('chatgpt')"></div>
                     </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
-                        <div class="text-gray-400 font-bold text-sm">TrueID</div>
-                        <div class="text-4xl font-black text-red-600 mt-2" x-text="countAppDaily('trueid')"></div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">TrueID</div>
+                        <div class="text-3xl md:text-4xl font-black text-red-600 mt-2" x-text="countAppDaily('trueid')"></div>
                     </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
-                        <div class="text-gray-400 font-bold text-sm">Youku</div>
-                        <div class="text-4xl font-black text-sky-500 mt-2" x-text="countAppDaily('youku')"></div>
-                    </div>
-                </div>
-
-                <h2 class="text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (สัปดาห์นี้)</h2>
-                <div class="grid grid-cols-4 gap-4 mb-8">
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
-                        <div class="text-gray-400 font-bold text-sm">Disney+</div>
-                        <div class="text-4xl font-black text-blue-600 mt-2" x-text="countAppWeekly('disney')"></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
-                        <div class="text-gray-400 font-bold text-sm">ChatGPT</div>
-                        <div class="text-4xl font-black text-emerald-600 mt-2" x-text="countAppWeekly('chatgpt')"></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
-                        <div class="text-gray-400 font-bold text-sm">TrueID</div>
-                        <div class="text-4xl font-black text-red-600 mt-2" x-text="countAppWeekly('trueid')"></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
-                        <div class="text-gray-400 font-bold text-sm">Youku</div>
-                        <div class="text-4xl font-black text-sky-500 mt-2" x-text="countAppWeekly('youku')"></div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">Youku</div>
+                        <div class="text-3xl md:text-4xl font-black text-sky-500 mt-2" x-text="countAppDaily('youku')"></div>
                     </div>
                 </div>
 
-                <h2 class="text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (เดือนนี้)</h2>
-                <div class="grid grid-cols-4 gap-4">
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
-                        <div class="text-gray-400 font-bold text-sm">Disney+</div>
-                        <div class="text-4xl font-black text-blue-600 mt-2" x-text="countAppMonthly('disney')"></div>
+                <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (สัปดาห์นี้)</h2>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
+                        <div class="text-3xl md:text-4xl font-black text-blue-600 mt-2" x-text="countAppWeekly('disney')"></div>
                     </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
-                        <div class="text-gray-400 font-bold text-sm">ChatGPT</div>
-                        <div class="text-4xl font-black text-emerald-600 mt-2" x-text="countAppMonthly('chatgpt')"></div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">ChatGPT</div>
+                        <div class="text-3xl md:text-4xl font-black text-emerald-600 mt-2" x-text="countAppWeekly('chatgpt')"></div>
                     </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
-                        <div class="text-gray-400 font-bold text-sm">TrueID</div>
-                        <div class="text-4xl font-black text-red-600 mt-2" x-text="countAppMonthly('trueid')"></div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">TrueID</div>
+                        <div class="text-3xl md:text-4xl font-black text-red-600 mt-2" x-text="countAppWeekly('trueid')"></div>
                     </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
-                        <div class="text-gray-400 font-bold text-sm">Youku</div>
-                        <div class="text-4xl font-black text-sky-500 mt-2" x-text="countAppMonthly('youku')"></div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">Youku</div>
+                        <div class="text-3xl md:text-4xl font-black text-sky-500 mt-2" x-text="countAppWeekly('youku')"></div>
+                    </div>
+                </div>
+
+                <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (เดือนนี้)</h2>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
+                        <div class="text-3xl md:text-4xl font-black text-blue-600 mt-2" x-text="countAppMonthly('disney')"></div>
+                    </div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">ChatGPT</div>
+                        <div class="text-3xl md:text-4xl font-black text-emerald-600 mt-2" x-text="countAppMonthly('chatgpt')"></div>
+                    </div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">TrueID</div>
+                        <div class="text-3xl md:text-4xl font-black text-red-600 mt-2" x-text="countAppMonthly('trueid')"></div>
+                    </div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">Youku</div>
+                        <div class="text-3xl md:text-4xl font-black text-sky-500 mt-2" x-text="countAppMonthly('youku')"></div>
                     </div>
                 </div>
             </div>
 
             <!-- Tab: Manage Emails -->
-            <div x-show="tab === 'emails'" class="p-8 max-w-7xl mx-auto">
-                <h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg><span>จัดการอีเมล Gmail / Domain</span></h1>
+            <div x-show="tab === 'emails'" class="p-4 md:p-8 max-w-7xl mx-auto">
+                <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg><span>จัดการอีเมล Gmail / Domain</span></h1>
                 
                 <!-- แท็บแยกระบบอีเมล -->
-                <div class="flex space-x-2 mb-6 bg-white p-2 rounded-xl shadow-sm border border-gray-200 inline-flex">
-                    <button @click="emailTab = 'Gmail'" :class="emailTab=='Gmail'?'bg-red-500 text-white shadow-md':'bg-transparent text-gray-600 hover:bg-gray-100'" class="px-8 py-3 rounded-lg font-bold transition-all">อีเมลจาก Gmail</button>
-                    <button @click="emailTab = 'MailySpace'" :class="emailTab=='MailySpace'?'bg-blue-600 text-white shadow-md':'bg-transparent text-gray-600 hover:bg-gray-100'" class="px-8 py-3 rounded-lg font-bold transition-all">อีเมลโดเมนจาก Maily Space</button>
+                <div class="flex space-x-2 mb-6 bg-white p-2 rounded-xl shadow-sm border border-gray-200 inline-flex w-auto max-w-full overflow-x-auto no-scrollbar">
+                    <button @click="emailTab = 'Gmail'" :class="emailTab=='Gmail'?'bg-red-500 text-white shadow-md':'bg-transparent text-gray-600 hover:bg-gray-100'" class="px-5 md:px-8 py-2.5 md:py-3 rounded-lg font-bold transition-all text-sm md:text-base whitespace-nowrap">อีเมลจาก Gmail</button>
+                    <button @click="emailTab = 'MailySpace'" :class="emailTab=='MailySpace'?'bg-blue-600 text-white shadow-md':'bg-transparent text-gray-600 hover:bg-gray-100'" class="px-5 md:px-8 py-2.5 md:py-3 rounded-lg font-bold transition-all text-sm md:text-base whitespace-nowrap">อีเมลโดเมนจาก Maily Space</button>
                 </div>
  
                 <!-- กล่องเพิ่มอีเมล และ ช่องค้นหา -->
-                <div class="grid grid-cols-5 gap-4 mb-6">
-                    <div class="col-span-3 flex space-x-2 bg-white p-4 rounded-xl shadow-sm border border-gray-200 items-center">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                    <div class="col-span-1 md:col-span-3 flex flex-col sm:flex-row gap-3 bg-white p-4 rounded-xl shadow-sm border border-gray-200 sm:items-end">
                         <div class="flex-1">
                             <label class="text-sm font-bold text-gray-600 block mb-1">เพิ่มอีเมล <span x-text="emailTab === 'Gmail' ? 'Gmail ใหม่' : 'Domain ใหม่'"></span></label>
                             <input type="email" x-model="newEmail" placeholder="กรอกอีเมลที่ต้องการเพิ่ม" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 transition-all font-medium text-gray-800">
                         </div>
-                        <button @click="addEmail()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-sm transition-all mt-6 flex items-center space-x-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg><span>เพิ่มข้อมูล</span></button>
+                        <button @click="addEmail()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3.5 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center space-x-2 shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg><span>เพิ่มข้อมูล</span></button>
                     </div>
-                    <div class="col-span-2 flex flex-col justify-end bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <div class="col-span-1 md:col-span-2 flex flex-col justify-end bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <label class="text-sm font-bold text-gray-600 block mb-1">ค้นหาเมล</label>
                         <input type="text" x-model="searchEmail" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-xl border border-gray-300 outline-none focus:border-blue-500 transition-all font-medium">
                     </div>
                 </div>
  
-                <!-- ตารางอีเมล -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
-                    <table class="w-full text-left">
+                <!-- แสดงผลตาราง (Desktop) หรือการ์ด (Mobile) -->
+                <!-- ตารางอีเมล (Desktop - lg ขึ้นไป) -->
+                <div class="hidden lg:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
+                    <table class="w-full text-left min-w-[900px]">
                         <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
                             <tr>
                                 <th class="p-5 font-bold text-sm">บัญชีอีเมล</th>
@@ -470,11 +485,54 @@ app.get('/admin', (req, res) => {
                         </tbody>
                     </table>
                 </div>
+
+                <!-- การ์ดรายการอีเมล (Mobile - lg ลงไป) -->
+                <div class="lg:hidden grid grid-cols-1 gap-4">
+                    <template x-for="e in filteredEmails" :key="e.id">
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 flex flex-col space-y-4 relative">
+                            <div class="flex justify-between items-start">
+                                <div class="break-all font-bold text-gray-800 text-base pr-8" x-text="e.email"></div>
+                                <button @click="deleteEmail(e.id)" class="text-red-500 hover:text-red-700 p-2 rounded-lg transition-all absolute top-3 right-3">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                                </button>
+                            </div>
+                            
+                            <div class="flex items-center justify-between border-t border-gray-100 pt-3">
+                                <span class="text-sm font-bold text-gray-500">สถานะบริการ:</span>
+                                <button @click="e.isActive = !e.isActive; saveEmail(e)" 
+                                        :class="e.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'" 
+                                        class="px-4 py-2 rounded-full text-xs font-bold shadow-sm transition-all hover:scale-105 flex items-center space-x-1">
+                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+                                        <span x-text="e.isActive ? 'เปิดให้บริการ' : 'ปิดให้บริการ'"></span>
+                                </button>
+                            </div>
+                            
+                            <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
+                                <span class="text-sm font-bold text-gray-500">จัดการบริการแยกแอป:</span>
+                                <div class="grid grid-cols-4 gap-1.5">
+                                    <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-blue-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">Disney</button>
+                                    <button @click="e.services.chatgpt = !e.services.chatgpt; saveEmail(e)" :class="e.services.chatgpt?'bg-emerald-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">GPT</button>
+                                    <button @click="e.services.trueid = !e.services.trueid; saveEmail(e)" :class="e.services.trueid?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">TrueID</button>
+                                    <button @click="e.services.youku = !e.services.youku; saveEmail(e)" :class="e.services.youku?'bg-sky-500 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">Youku</button>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
+                                <span class="text-sm font-bold text-gray-500">รหัส PIN ความปลอดภัย:</span>
+                                <div class="flex items-center space-x-2">
+                                    <input type="text" x-model="e.pin" maxlength="6" placeholder="ไม่ตั้ง PIN" class="border border-gray-300 rounded-lg p-2.5 flex-1 text-center font-bold tracking-widest text-sm outline-none focus:border-blue-500 bg-white">
+                                    <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-3 py-2.5 rounded-lg text-xs font-bold transition-all shrink-0">บันทึก</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="filteredEmails.length === 0" class="text-center text-gray-400 py-10 font-bold bg-white rounded-2xl border border-gray-200 border-dashed">ยังไม่มีรายชื่ออีเมลในระบบนี้</div>
+                </div>
             </div>
 
             <!-- Tab: Inbox -->
-            <div x-show="tab === 'inbox'" class="p-8 max-w-6xl mx-auto">
-                <h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-17.5 0V6.75A2.25 2.25 0 016.375 4.5h11.25a2.25 2.25 0 012.25 2.25v6.75m-17.625 0h-.375a2.25 2.25 0 00-2.25 2.25v1.5a2.25 2.25 0 002.25 2.25h19.5a2.25 2.25 0 002.25-2.25v-1.5a2.25 2.25 0 00-2.25-2.25h-.375" /></svg><span>กล่องจดหมาย (รวมทั้งหมด)</span></h1>
+            <div x-show="tab === 'inbox'" class="p-4 md:p-8 max-w-6xl mx-auto">
+                <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-17.5 0V6.75A2.25 2.25 0 016.375 4.5h11.25a2.25 2.25 0 012.25 2.25v6.75m-17.625 0h-.375a2.25 2.25 0 00-2.25 2.25v1.5a2.25 2.25 0 002.25 2.25h19.5a2.25 2.25 0 002.25-2.25v-1.5a2.25 2.25 0 00-2.25-2.25h-.375" /></svg><span>กล่องจดหมาย (รวมทั้งหมด)</span></h1>
                 
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
                     <input type="text" x-model="searchInbox" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-lg outline-none font-medium text-gray-700">
@@ -483,23 +541,22 @@ app.get('/admin', (req, res) => {
                 <div class="space-y-4">
                     <template x-for="msg in filteredInbox" :key="msg.id">
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 flex flex-col relative hover:shadow-md transition-shadow">
-                            <div class="flex justify-between items-start mb-3">
-                                <div class="text-sm">
-                                    <div class="font-bold text-gray-800"><span class="text-blue-500 w-20 inline-block font-bold">ผู้ส่ง:</span> <span x-text="msg.from"></span></div>
-                                    <div class="font-bold text-gray-800"><span class="text-red-500 w-20 inline-block font-bold">ผู้รับ:</span> <span x-text="msg.to"></span></div>
+                            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-3">
+                                <div class="text-sm space-y-1">
+                                    <div class="font-bold text-gray-800 break-all"><span class="text-blue-500 w-16 inline-block font-bold">ผู้ส่ง:</span> <span x-text="msg.from"></span></div>
+                                    <div class="font-bold text-gray-800 break-all"><span class="text-red-500 w-16 inline-block font-bold">ผู้รับ:</span> <span x-text="msg.to"></span></div>
                                 </div>
-                                <div class="flex items-center space-x-2">
+                                <div class="flex items-center justify-between sm:justify-end gap-2 border-t sm:border-0 pt-2 sm:pt-0">
                                     <div class="text-xs text-gray-500 font-bold bg-gray-100 px-3 py-1.5 rounded-lg flex items-center">
                                         <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> <span x-text="msg.time"></span>
                                     </div>
-                                    <!-- Delete button placed here -->
                                     <button @click="deleteInbox(msg.id)" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-all" title="ลบข้อความนี้">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                                     </button>
                                 </div>
                             </div>
                             <div class="text-sm font-bold text-gray-700 mb-2 border-t pt-3" x-text="'หัวข้ออีเมล: ' + msg.subject"></div>
-                            <div class="text-gray-600 bg-blue-50/50 p-4 rounded-xl border border-blue-100 font-medium text-sm" x-text="msg.message"></div>
+                            <div class="text-gray-600 bg-blue-50/50 p-4 rounded-xl border border-blue-100 font-medium text-sm whitespace-pre-wrap break-all" x-text="msg.message"></div>
                         </div>
                     </template>
                     <div x-show="filteredInbox.length === 0" class="text-center text-gray-400 py-10 font-bold bg-white rounded-2xl border border-gray-200 border-dashed">ไม่พบข้อความอีเมล</div>
@@ -507,14 +564,15 @@ app.get('/admin', (req, res) => {
             </div>
 
             <!-- Tab: History -->
-            <div x-show="tab === 'history'" class="p-8 max-w-6xl mx-auto">
-                <h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>ประวัติการทำรายการ / ค้นหา OTP</span></h1>
+            <div x-show="tab === 'history'" class="p-4 md:p-8 max-w-6xl mx-auto">
+                <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>ประวัติการทำรายการ / ค้นหา OTP</span></h1>
                 
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
                     <input type="text" x-model="searchHistory" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-lg outline-none font-medium text-gray-700">
                 </div>
  
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <!-- ตารางประวัติ (Desktop) -->
+                <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     <table class="w-full text-left">
                         <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
                             <tr><th class="p-5 font-bold text-sm">วันที่ / เวลา</th><th class="p-5 font-bold text-sm">บัญชีอีเมล</th><th class="p-5 font-bold text-sm text-blue-600">ชื่ออุปกรณ์ของลูกค้า</th><th class="p-5 font-bold text-sm text-center">บริการแอปพลิเคชัน</th><th class="p-5 font-bold text-sm text-center">รหัสที่แสดง ดึงได้</th></tr>
@@ -535,16 +593,37 @@ app.get('/admin', (req, res) => {
                         </tbody>
                     </table>
                 </div>
+
+                <!-- การ์ดประวัติ (Mobile - md ลงไป) -->
+                <div class="md:hidden grid grid-cols-1 gap-3">
+                    <template x-for="h in filteredHistory">
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex flex-col space-y-2">
+                            <div class="flex justify-between items-center text-xs text-gray-500">
+                                <span x-text="h.time" class="font-medium"></span>
+                                <span class="font-bold uppercase px-2 py-0.5 bg-gray-100 rounded text-gray-700 text-[10px]" x-text="h.service"></span>
+                            </div>
+                            <div class="border-t border-gray-50 pt-2 flex flex-col space-y-1">
+                                <div class="text-sm font-bold text-gray-800 break-all"><span class="text-gray-400 font-normal text-xs inline-block w-14">อีเมล:</span> <span x-text="h.email"></span></div>
+                                <div class="text-sm font-bold text-blue-600 break-all"><span class="text-gray-400 font-normal text-xs inline-block w-14">อุปกรณ์:</span> <span x-text="h.device"></span></div>
+                            </div>
+                            <div class="border-t border-gray-50 pt-2 flex justify-between items-center">
+                                <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">รหัสที่ดึงได้:</span>
+                                <span class="text-2xl font-black tracking-widest text-emerald-600" x-text="h.otp"></span>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="filteredHistory.length === 0" class="text-center text-gray-400 py-10 font-bold bg-white rounded-2xl border border-gray-200 border-dashed">ไม่พบประวัติการค้นหา</div>
+                </div>
             </div>
 
             <!-- Tab: Settings -->
-            <div x-show="tab === 'settings'" class="p-8 max-w-4xl mx-auto">
-                <h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span>ตั้งค่าระบบหลังบ้าน</span></h1>
+            <div x-show="tab === 'settings'" class="p-4 md:p-8 max-w-4xl mx-auto">
+                <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span>ตั้งค่าระบบหลังบ้าน</span></h1>
                 
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 mb-8">
+                <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 mb-8">
                     <h2 class="text-xl font-bold mb-6 text-gray-800">จัดการบริการ</h2>
                     
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
                             <span class="font-bold text-gray-700 text-lg">Disney+</span>
                             <button @click="db.globalSettings.disney = !db.globalSettings.disney; saveSettings()" 
@@ -580,7 +659,7 @@ app.get('/admin', (req, res) => {
                     </div>
                 </div>
  
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 relative overflow-hidden">
+                <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 relative overflow-hidden">
                     <h2 class="text-xl font-bold mb-6 text-gray-800">ตั้งค่าผู้ดูแลระบบ</h2>
                     
                     <div class="space-y-4 max-w-md">
@@ -592,9 +671,9 @@ app.get('/admin', (req, res) => {
                             <label class="text-sm font-bold text-gray-600 block mb-1">Password / รหัสผ่าน</label>
                             <input type="text" x-model="newAdminPass" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-gray-800">
                         </div>
-                        <div class="pt-2 flex items-center">
+                        <div class="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                             <button @click="updateAdmin" class="bg-gray-800 hover:bg-black text-white font-bold py-3 px-8 rounded-xl shadow-md active:scale-95 transition-all">บันทึกการเปลี่ยนแปลงข้อมูล</button>
-                            <span x-show="adminSaved" class="text-emerald-600 ml-4 font-bold bg-emerald-50 px-3 py-1 rounded-lg">บันทึกสำเร็จแล้ว!</span>
+                            <span x-show="adminSaved" class="text-emerald-600 font-bold bg-emerald-50 px-3 py-1 rounded-lg text-center">บันทึกสำเร็จแล้ว!</span>
                         </div>
                     </div>
                 </div>
@@ -609,7 +688,7 @@ app.get('/admin', (req, res) => {
                 isLoggedIn: false, loginUser: '', loginPass: '', loginError: false,
                 tab: 'dashboard', emailTab: 'Gmail', searchEmail: '', searchInbox: '', searchHistory: '', newEmail: '',
                 db: { emails: [], history: [], inbox: [], globalSettings: {} },
-                newAdminUser: '', newAdminPass: '', adminSaved: false,
+                newAdminUser: '', newAdminPass: '', adminSaved: false, mobileMenuOpen: false,
 
                 async login() {
                     const res = await fetch('/api/admin/login', {
