@@ -198,6 +198,11 @@ app.get('/api/get-otp', async (req, res) => {
     res.json({ success: true, code: otpCode });
 });
 
+app.get('/api/settings', (req, res) => {
+    const db = getDB();
+    res.json({ success: true, settings: db.globalSettings });
+});
+
 // ==========================================
 // API แอดมินจัดการหลังบ้าน
 // ==========================================
@@ -343,21 +348,21 @@ app.get('/admin', (req, res) => {
                     </div>
                 </div>
 
-                <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (วันนี้) <span class="font-normal text-sm" x-text="new Date().toLocaleDateString('th-TH')"></span></h2>
+                <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (วันนี้)</h2>
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
                         <div class="text-3xl md:text-4xl font-black text-blue-600 mt-2" x-text="countAppDaily('disney')"></div>
                     </div>
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">ChatGPT</div>
                         <div class="text-3xl md:text-4xl font-black text-emerald-600 mt-2" x-text="countAppDaily('chatgpt')"></div>
                     </div>
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">TrueID</div>
                         <div class="text-3xl md:text-4xl font-black text-red-600 mt-2" x-text="countAppDaily('trueid')"></div>
                     </div>
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Youku</div>
                         <div class="text-3xl md:text-4xl font-black text-sky-500 mt-2" x-text="countAppDaily('youku')"></div>
                     </div>
@@ -365,19 +370,19 @@ app.get('/admin', (req, res) => {
 
                 <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (สัปดาห์นี้)</h2>
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
                         <div class="text-3xl md:text-4xl font-black text-blue-600 mt-2" x-text="countAppWeekly('disney')"></div>
                     </div>
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">ChatGPT</div>
                         <div class="text-3xl md:text-4xl font-black text-emerald-600 mt-2" x-text="countAppWeekly('chatgpt')"></div>
                     </div>
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">TrueID</div>
                         <div class="text-3xl md:text-4xl font-black text-red-600 mt-2" x-text="countAppWeekly('trueid')"></div>
                     </div>
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Youku</div>
                         <div class="text-3xl md:text-4xl font-black text-sky-500 mt-2" x-text="countAppWeekly('youku')"></div>
                     </div>
@@ -385,19 +390,19 @@ app.get('/admin', (req, res) => {
 
                 <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (เดือนนี้)</h2>
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-blue-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
                         <div class="text-3xl md:text-4xl font-black text-blue-600 mt-2" x-text="countAppMonthly('disney')"></div>
                     </div>
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-emerald-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">ChatGPT</div>
                         <div class="text-3xl md:text-4xl font-black text-emerald-600 mt-2" x-text="countAppMonthly('chatgpt')"></div>
                     </div>
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-red-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">TrueID</div>
                         <div class="text-3xl md:text-4xl font-black text-red-600 mt-2" x-text="countAppMonthly('trueid')"></div>
                     </div>
-                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center border-t-4 border-t-sky-500">
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Youku</div>
                         <div class="text-3xl md:text-4xl font-black text-sky-500 mt-2" x-text="countAppMonthly('youku')"></div>
                     </div>
@@ -530,61 +535,87 @@ app.get('/admin', (req, res) => {
                 </div>
             </div>
 
-            <!-- Tab: Inbox -->
-            <div x-show="tab === 'inbox'" class="p-4 md:p-8 max-w-6xl mx-auto">
+                        <!-- Tab: Inbox -->
+            <div x-show="tab === 'inbox'" class="p-4 md:p-6 max-w-4xl mx-auto">
                 <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-17.5 0V6.75A2.25 2.25 0 016.375 4.5h11.25a2.25 2.25 0 012.25 2.25v6.75m-17.625 0h-.375a2.25 2.25 0 00-2.25 2.25v1.5a2.25 2.25 0 002.25 2.25h19.5a2.25 2.25 0 002.25-2.25v-1.5a2.25 2.25 0 00-2.25-2.25h-.375" /></svg><span>กล่องจดหมาย (รวมทั้งหมด)</span></h1>
                 
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
-                    <input type="text" x-model="searchInbox" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-lg outline-none font-medium text-gray-700">
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-200 mb-4">
+                    <input type="text" x-model="searchInbox" @input="inboxPage = 1" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-2.5 rounded-lg outline-none font-medium text-gray-700">
                 </div>
  
                 <div class="space-y-4">
-                    <template x-for="msg in filteredInbox" :key="msg.id">
-                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 flex flex-col relative hover:shadow-md transition-shadow">
-                            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-3">
-                                <div class="text-sm space-y-1">
-                                    <div class="font-bold text-gray-800 break-all"><span class="text-blue-500 w-16 inline-block font-bold">ผู้ส่ง:</span> <span x-text="msg.from"></span></div>
-                                    <div class="font-bold text-gray-800 break-all"><span class="text-red-500 w-16 inline-block font-bold">ผู้รับ:</span> <span x-text="msg.to"></span></div>
+                    <template x-for="msg in paginatedInbox" :key="msg.id">
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col relative hover:shadow-md transition-shadow">
+                            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-2.5">
+                                <div class="text-sm space-y-0.5">
+                                    <div class="font-bold text-gray-800 break-all"><span class="text-blue-500 w-12 inline-block font-bold">ผู้ส่ง:</span> <span x-text="msg.from"></span></div>
+                                    <div class="font-bold text-gray-800 break-all"><span class="text-red-500 w-12 inline-block font-bold">ผู้รับ:</span> <span x-text="msg.to"></span></div>
                                 </div>
                                 <div class="flex items-center justify-between sm:justify-end gap-2 border-t sm:border-0 pt-2 sm:pt-0">
-                                    <div class="text-xs text-gray-500 font-bold bg-gray-100 px-3 py-1.5 rounded-lg flex items-center">
-                                        <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> <span x-text="msg.time"></span>
+                                    <div class="text-xs text-gray-500 font-bold bg-gray-100 px-2.5 py-1 rounded-lg flex items-center">
+                                        <svg class="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> <span x-text="msg.time"></span>
                                     </div>
                                     <button @click="deleteInbox(msg.id)" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-all" title="ลบข้อความนี้">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                                     </button>
                                 </div>
                             </div>
-                            <div class="text-sm font-bold text-gray-700 mb-2 border-t pt-3" x-text="'หัวข้ออีเมล: ' + msg.subject"></div>
-                            <div class="text-gray-600 bg-blue-50/50 p-4 rounded-xl border border-blue-100 font-medium text-sm whitespace-pre-wrap break-all" x-text="msg.message"></div>
+                            <div class="text-xs font-bold text-gray-500 mb-2 border-t pt-2" x-text="'หัวข้ออีเมล: ' + msg.subject"></div>
+                            <div class="text-gray-600 bg-blue-50/50 p-3 rounded-lg border border-blue-100 font-medium text-xs whitespace-pre-wrap break-all max-h-24 overflow-y-auto" x-text="msg.message"></div>
                         </div>
                     </template>
                     <div x-show="filteredInbox.length === 0" class="text-center text-gray-400 py-10 font-bold bg-white rounded-2xl border border-gray-200 border-dashed">ไม่พบข้อความอีเมล</div>
                 </div>
+
+                <!-- Pagination for Inbox -->
+                <div x-show="totalInboxPages > 1" class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
+                    <div class="text-xs font-bold text-gray-500">
+                        แสดงหน้า <span x-text="inboxPage"></span> จาก <span x-text="totalInboxPages"></span> (ทั้งหมด <span x-text="filteredInbox.length"></span> รายการ)
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <button @click="inboxPage = 1" :disabled="inboxPage === 1" class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-bold text-xs bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">หน้าแรก</button>
+                        <button @click="if(inboxPage > 1) inboxPage--" :disabled="inboxPage === 1" class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-bold text-xs bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">ก่อนหน้า</button>
+                        
+                        <template x-for="p in visibleInboxPages" :key="p">
+                            <button @click="inboxPage = p" 
+                                    :class="inboxPage === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'" 
+                                    class="w-8 h-8 rounded-lg border font-bold text-xs flex items-center justify-center transition-colors"
+                                    x-text="p"></button>
+                        </template>
+                        
+                        <button @click="if(inboxPage < totalInboxPages) inboxPage++" :disabled="inboxPage === totalInboxPages" class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-bold text-xs bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">ถัดไป</button>
+                    </div>
+                </div>
             </div>
 
-            <!-- Tab: History -->
-            <div x-show="tab === 'history'" class="p-4 md:p-8 max-w-6xl mx-auto">
+                        <!-- Tab: History -->
+            <div x-show="tab === 'history'" class="p-4 md:p-6 max-w-4xl mx-auto">
                 <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>ประวัติการทำรายการ / ค้นหา OTP</span></h1>
                 
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
-                    <input type="text" x-model="searchHistory" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-lg outline-none font-medium text-gray-700">
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-200 mb-4">
+                    <input type="text" x-model="searchHistory" @input="historyPage = 1" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-2.5 rounded-lg outline-none font-medium text-gray-700">
                 </div>
  
                 <!-- ตารางประวัติ (Desktop) -->
                 <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     <table class="w-full text-left">
                         <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
-                            <tr><th class="p-5 font-bold text-sm">วันที่ / เวลา</th><th class="p-5 font-bold text-sm">บัญชีอีเมล</th><th class="p-5 font-bold text-sm text-blue-600">ชื่ออุปกรณ์ของลูกค้า</th><th class="p-5 font-bold text-sm text-center">บริการแอปพลิเคชัน</th><th class="p-5 font-bold text-sm text-center">รหัสที่แสดง ดึงได้</th></tr>
+                            <tr>
+                                <th class="p-3.5 font-bold text-sm">วันที่ / เวลา</th>
+                                <th class="p-3.5 font-bold text-sm">บัญชีอีเมล</th>
+                                <th class="p-3.5 font-bold text-sm">ชื่ออุปกรณ์</th>
+                                <th class="p-3.5 font-bold text-sm text-center">บริการ</th>
+                                <th class="p-3.5 font-bold text-sm text-center">รหัสที่แสดง</th>
+                            </tr>
                         </thead>
                         <tbody>
-                            <template x-for="h in filteredHistory">
+                            <template x-for="h in paginatedHistory">
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                    <td class="p-5 text-sm font-medium text-gray-500" x-text="h.time"></td>
-                                    <td class="p-5 font-bold text-gray-800" x-text="h.email"></td>
-                                    <td class="p-5 font-bold text-blue-600 bg-blue-50/30" x-text="h.device"></td>
-                                    <td class="p-5 font-bold text-gray-700 text-center capitalize" x-text="h.service"></td>
-                                    <td class="p-5 font-black tracking-widest text-xl text-emerald-600 text-center" x-text="h.otp"></td>
+                                    <td class="p-3.5 text-sm font-medium text-gray-500" x-text="h.time"></td>
+                                    <td class="p-3.5 font-bold text-gray-800" x-text="h.email"></td>
+                                    <td class="p-3.5 font-bold text-gray-700" x-text="h.device"></td>
+                                    <td class="p-3.5 font-bold text-gray-700 text-center capitalize" x-text="h.service"></td>
+                                    <td class="p-3.5 font-black tracking-widest text-xl text-emerald-600 text-center" x-text="h.otp"></td>
                                 </tr>
                             </template>
                             <tr x-show="filteredHistory.length === 0">
@@ -593,18 +624,18 @@ app.get('/admin', (req, res) => {
                         </tbody>
                     </table>
                 </div>
-
+ 
                 <!-- การ์ดประวัติ (Mobile - md ลงไป) -->
                 <div class="md:hidden grid grid-cols-1 gap-3">
-                    <template x-for="h in filteredHistory">
-                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex flex-col space-y-2">
+                    <template x-for="h in paginatedHistory">
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col space-y-2">
                             <div class="flex justify-between items-center text-xs text-gray-500">
                                 <span x-text="h.time" class="font-medium"></span>
                                 <span class="font-bold uppercase px-2 py-0.5 bg-gray-100 rounded text-gray-700 text-[10px]" x-text="h.service"></span>
                             </div>
                             <div class="border-t border-gray-50 pt-2 flex flex-col space-y-1">
                                 <div class="text-sm font-bold text-gray-800 break-all"><span class="text-gray-400 font-normal text-xs inline-block w-14">อีเมล:</span> <span x-text="h.email"></span></div>
-                                <div class="text-sm font-bold text-blue-600 break-all"><span class="text-gray-400 font-normal text-xs inline-block w-14">อุปกรณ์:</span> <span x-text="h.device"></span></div>
+                                <div class="text-sm font-bold text-gray-700 break-all"><span class="text-gray-400 font-normal text-xs inline-block w-14">อุปกรณ์:</span> <span x-text="h.device"></span></div>
                             </div>
                             <div class="border-t border-gray-50 pt-2 flex justify-between items-center">
                                 <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">รหัสที่ดึงได้:</span>
@@ -613,6 +644,26 @@ app.get('/admin', (req, res) => {
                         </div>
                     </template>
                     <div x-show="filteredHistory.length === 0" class="text-center text-gray-400 py-10 font-bold bg-white rounded-2xl border border-gray-200 border-dashed">ไม่พบประวัติการค้นหา</div>
+                </div>
+
+                <!-- Pagination for History -->
+                <div x-show="totalHistoryPages > 1" class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
+                    <div class="text-xs font-bold text-gray-500">
+                        แสดงหน้า <span x-text="historyPage"></span> จาก <span x-text="totalHistoryPages"></span> (ทั้งหมด <span x-text="filteredHistory.length"></span> รายการ)
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <button @click="historyPage = 1" :disabled="historyPage === 1" class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-bold text-xs bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">หน้าแรก</button>
+                        <button @click="if(historyPage > 1) historyPage--" :disabled="historyPage === 1" class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-bold text-xs bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">ก่อนหน้า</button>
+                        
+                        <template x-for="p in visibleHistoryPages" :key="p">
+                            <button @click="historyPage = p" 
+                                    :class="historyPage === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'" 
+                                    class="w-8 h-8 rounded-lg border font-bold text-xs flex items-center justify-center transition-colors"
+                                    x-text="p"></button>
+                        </template>
+                        
+                        <button @click="if(historyPage < totalHistoryPages) historyPage++" :disabled="historyPage === totalHistoryPages" class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-bold text-xs bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">ถัดไป</button>
+                    </div>
                 </div>
             </div>
 
@@ -659,6 +710,19 @@ app.get('/admin', (req, res) => {
                     </div>
                 </div>
  
+                <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 mb-8">
+                    <h2 class="text-xl font-bold mb-4 text-gray-800">แบนเนอร์หน้าแรก</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-sm font-bold text-gray-600 block mb-1">ลิงก์รูปภาพแบนเนอร์หน้าแรก (Banner Image URL หรือ Path)</label>
+                            <input type="text" x-model="db.globalSettings.bannerUrl" placeholder="ระบุ URL ของแบนเนอร์ เช่น ./banner.png หรือ https://..." class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800">
+                        </div>
+                        <div class="pt-2">
+                            <button @click="saveSettings()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl shadow-md active:scale-95 transition-all">บันทึกรูปภาพแบนเนอร์</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 relative overflow-hidden">
                     <h2 class="text-xl font-bold mb-6 text-gray-800">ตั้งค่าผู้ดูแลระบบ</h2>
                     
@@ -689,6 +753,8 @@ app.get('/admin', (req, res) => {
                 tab: 'dashboard', emailTab: 'Gmail', searchEmail: '', searchInbox: '', searchHistory: '', newEmail: '',
                 db: { emails: [], history: [], inbox: [], globalSettings: {} },
                 newAdminUser: '', newAdminPass: '', adminSaved: false, mobileMenuOpen: false,
+                inboxPage: 1, inboxPerPage: 10,
+                historyPage: 1, historyPerPage: 10,
 
                 async login() {
                     const res = await fetch('/api/admin/login', {
@@ -760,6 +826,16 @@ app.get('/admin', (req, res) => {
                 get filteredInbox() {
                     return this.db.inbox.filter(m => m.from.includes(this.searchInbox) || m.to.includes(this.searchInbox) || m.subject.includes(this.searchInbox) || m.message.includes(this.searchInbox));
                 },
+                get paginatedInbox() {
+                    const start = (this.inboxPage - 1) * this.inboxPerPage;
+                    return this.filteredInbox.slice(start, start + this.inboxPerPage);
+                },
+                get totalInboxPages() {
+                    return Math.ceil(this.filteredInbox.length / this.inboxPerPage) || 1;
+                },
+                get visibleInboxPages() {
+                    return this.getVisiblePages(this.inboxPage, this.totalInboxPages);
+                },
                 async deleteInbox(id) {
                     if(!confirm('ยืนยันการลบข้อความนี้?')) return;
                     await fetch('/api/admin/delete-inbox', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id}) });
@@ -768,6 +844,29 @@ app.get('/admin', (req, res) => {
 
                 get filteredHistory() {
                     return this.db.history.filter(h => h.email.toLowerCase().includes(this.searchHistory.toLowerCase()) || (h.device && h.device.toLowerCase().includes(this.searchHistory.toLowerCase())));
+                },
+                get paginatedHistory() {
+                    const start = (this.historyPage - 1) * this.historyPerPage;
+                    return this.filteredHistory.slice(start, start + this.historyPerPage);
+                },
+                get totalHistoryPages() {
+                    return Math.ceil(this.filteredHistory.length / this.historyPerPage) || 1;
+                },
+                get visibleHistoryPages() {
+                    return this.getVisiblePages(this.historyPage, this.totalHistoryPages);
+                },
+                getVisiblePages(current, total) {
+                    const pages = [];
+                    const maxVisible = 5;
+                    let start = Math.max(1, current - 2);
+                    let end = Math.min(total, start + maxVisible - 1);
+                    if (end - start + 1 < maxVisible) {
+                        start = Math.max(1, end - maxVisible + 1);
+                    }
+                    for (let i = start; i <= end; i++) {
+                        pages.push(i);
+                    }
+                    return pages;
                 },
 
                 async saveSettings() {

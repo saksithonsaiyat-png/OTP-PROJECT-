@@ -4,10 +4,11 @@
     "password": "1234"
   },
   "globalSettings": {
-    "disney": false,
+    "disney": true,
     "chatgpt": true,
     "trueid": true,
-    "youku": true
+    "youku": true,
+    "bannerUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVGc6sjwFzcCDpVpMTR5C12CB34VPklMlDHaeh7h9dQ8ftbjFzmRSXqCO5&s=10"
   },
   "emails": [
     {
@@ -48,9 +49,49 @@
         "trueid": true,
         "youku": true
       }
+    },
+    {
+      "id": "1781449327721",
+      "email": "test@gmail.com",
+      "system": "Gmail",
+      "isActive": true,
+      "pin": "",
+      "services": {
+        "disney": true,
+        "chatgpt": true,
+        "trueid": true,
+        "youku": true
+      }
     }
   ],
   "history": [
+    {
+      "time": "15/6/2569 21:28:51",
+      "dateStr": "15/6/2569",
+      "email": "saksithonsaiyat@gmail.com",
+      "device": "Com",
+      "service": "chatgpt",
+      "system": "Gmail",
+      "otp": "681914"
+    },
+    {
+      "time": "15/6/2569 21:13:34",
+      "dateStr": "15/6/2569",
+      "email": "saksithonsaiyat@gmail.com",
+      "device": "Com",
+      "service": "disney",
+      "system": "Gmail",
+      "otp": "453179"
+    },
+    {
+      "time": "14/6/2569 22:02:07",
+      "dateStr": "14/6/2569",
+      "email": "test@gmail.com",
+      "device": "TestPhone",
+      "service": "disney",
+      "system": "Gmail",
+      "otp": "962069"
+    },
     {
       "time": "12/6/2569 22:08:56",
       "dateStr": "12/6/2569",
@@ -158,6 +199,33 @@
     }
   ],
   "inbox": [
+    {
+      "id": "1781533731981",
+      "time": "15/6/2569 21:28:51",
+      "from": "no-reply@chatgpt.com",
+      "to": "saksithonsaiyat@gmail.com",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ CHATGPT",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน chatgpt\nรหัส OTP ของคุณคือ: 681914",
+      "system": "Gmail"
+    },
+    {
+      "id": "1781532814145",
+      "time": "15/6/2569 21:13:34",
+      "from": "no-reply@disney.com",
+      "to": "saksithonsaiyat@gmail.com",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ DISNEY",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน disney\nรหัส OTP ของคุณคือ: 453179",
+      "system": "Gmail"
+    },
+    {
+      "id": "1781449327764",
+      "time": "14/6/2569 22:02:07",
+      "from": "no-reply@disney.com",
+      "to": "test@gmail.com",
+      "subject": "รหัสยืนยัน OTP ของคุณสำหรับ DISNEY",
+      "message": "คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน disney\nรหัส OTP ของคุณคือ: 962069",
+      "system": "Gmail"
+    },
     {
       "id": "1781276936665",
       "time": "12/6/2569 22:08:56",

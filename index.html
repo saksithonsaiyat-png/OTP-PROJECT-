@@ -139,16 +139,16 @@
         </div>
 
         <!-- หน้าแรก -->
-        <div id="screen-home" class="flex-1 flex flex-col items-center content-transition w-full">
-            <h1 class="text-3xl font-extrabold mb-2 text-center mt-2 tracking-tight">บริการของเรา</h1>
-            <p class="text-neutral-500 dark:text-neutral-400 text-sm mb-6 text-center font-normal">
-                เลือกบริการที่ต้องการรับรหัสยืนยัน OTP</p>
+        <div id="screen-home" class="flex-1 flex flex-col items-center content-transition w-full animate-slideUpFade">
+            <div id="home-banner-container" class="w-full mb-6 hidden">
+                <img id="home-banner" src="" class="w-full h-auto object-cover rounded-2xl shadow-sm border border-neutral-100 dark:border-neutral-800" alt="Banner" />
+            </div>
             <div id="app-grid" class="w-full space-y-4"></div>
         </div>
 
         <!-- หน้าบริการ -->
         <div id="screen-service"
-            class="flex-1 flex flex-col items-center content-transition w-full hidden absolute top-[90px] left-0 px-4 pb-10 z-10">
+            class="flex-1 flex flex-col items-center content-transition w-full hidden absolute top-[125px] left-0 px-4 pb-10 z-10">
             <div id="main-logo-container"
                 class="w-24 h-24 rounded-2xl mb-4 flex items-center justify-center bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-0 overflow-hidden shadow-sm transition-all duration-700 relative">
                 <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover transform scale-110"
@@ -225,7 +225,7 @@
         const BASE_URL = window.location.origin;
 
         const SERVICES = [
-            { id: 'disney', name: 'Disney+', bgCol: 'bg-[#0050FF]', text: 'text-[#0050FF] dark:text-[#3377FF]', localImage: './disney.jpg' },
+            { id: 'disney', name: 'Disney+', bgCol: 'bg-[#0072D2]', text: 'text-[#0072D2] dark:text-[#389FFF]', localImage: './disney.jpg' },
             { id: 'chatgpt', name: 'ChatGPT', bgCol: 'bg-[#10A37F]', text: 'text-[#10A37F] dark:text-[#10A37F]', localImage: './gpt.jpg' },
             { id: 'trueid', name: 'TrueID', bgCol: 'bg-[#E81C24]', text: 'text-[#E81C24] dark:text-[#E81C24]', localImage: './trueid.jpg' },
             { id: 'youku', name: 'Youku', bgCol: 'bg-[#00A0E9]', text: 'text-[#00A0E9] dark:text-[#00A0E9]', localImage: './youku.jpg' }
@@ -237,6 +237,7 @@
         let isSwitchingScreen = false;
         let otpList = [];
         let pendingRequest = null;
+        let globalSettings = { disney: true, chatgpt: true, trueid: true, youku: true };
 
         // จัดการเมนูสามขีด
         let isMenuOpen = false;
@@ -284,7 +285,7 @@
                         id: Date.now(),
                         time: now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.',
                         date: now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                        title: `รหัสเข้าใช้งาน ${activeService.name} (${data.system || reqData.system})`,
+                        title: `รหัสเข้าใช้งาน ${activeService.name}`,
                         code: data.code,
                         service: activeService.id
                     };
@@ -306,17 +307,39 @@
         }
 
         function initAppGrid() {
-            document.getElementById('app-grid').innerHTML = SERVICES.map((srv, index) => `
-                <button onclick="goToService('${srv.id}')" class="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 rounded-2xl p-4 flex items-center space-x-4 shadow-sm active:scale-95 animate-slideUpFade opacity-0 transition-all duration-300" style="animation-delay: ${index * 0.1}s">
-                    <div class="w-14 h-14 rounded-xl bg-neutral-100 overflow-hidden"><img src="${srv.localImage}" onerror="this.src='https://placehold.co/100x100/png'" class="w-full h-full object-cover"></div>
-                    <div class="flex-1 text-left"><h3 class="text-lg font-bold">${srv.name}</h3><p class="text-sm text-neutral-500">ไปที่หน้ากรอกอีเมลเพื่อรับรหัส</p></div>
+            document.getElementById('app-grid').innerHTML = SERVICES.map((srv, index) => {
+                const isAvailable = globalSettings[srv.id] !== false;
+                const statusText = isAvailable ? 'พร้อมให้บริการ' : 'ไม่พร้อมใช้งาน';
+                const statusColor = isAvailable ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400';
+                const dotColor = isAvailable ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.7)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]';
+                const btnClasses = isAvailable
+                    ? "w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 rounded-2xl p-4 flex items-center space-x-4 shadow-sm active:scale-95 animate-slideUpFade opacity-0 transition-all duration-300"
+                    : "w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl p-4 flex items-center space-x-4 shadow-sm opacity-65 cursor-not-allowed animate-slideUpFade opacity-0 transition-all duration-300";
+
+                return `
+                <button onclick="goToService('${srv.id}')" class="${btnClasses}" style="animation-delay: ${index * 0.1}s">
+                    <div class="w-14 h-14 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700 overflow-hidden flex items-center justify-center shrink-0 ${!isAvailable ? 'grayscale opacity-75' : ''}">
+                        <img src="${srv.localImage}" onerror="this.src='https://placehold.co/100x100/png'" class="w-full h-full object-cover">
+                    </div>
+                    <div class="flex-1 text-left">
+                        <h3 class="text-lg font-bold ${!isAvailable ? 'text-neutral-500 dark:text-neutral-400' : ''}">${srv.name}</h3>
+                        <p class="text-xs ${statusColor} font-bold flex items-center mt-1">
+                            <span class="w-2 h-2 rounded-full ${dotColor} mr-1.5"></span>${statusText}
+                        </p>
+                    </div>
                     <svg class="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                 </button>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function goToService(serviceId) {
             if (isSwitchingScreen) return;
+            const isAvailable = globalSettings[serviceId] !== false;
+            if (!isAvailable) {
+                alert(`ขออภัย บริการ ${SERVICES.find(s => s.id === serviceId).name} ยังไม่พร้อมใช้งานในขณะนี้`);
+                return;
+            }
             isSwitchingScreen = true; activeService = SERVICES.find(s => s.id === serviceId);
             document.getElementById('screen-home').classList.add('content-hidden');
             document.getElementById('main-brand-logo').classList.add('opacity-0', '-translate-x-4');
@@ -446,8 +469,30 @@
             cooldownTimerId = setInterval(() => { cooldown -= 1; updateButton(); if (cooldown <= 0) clearInterval(cooldownTimerId); }, 1000);
         }
 
+        async function loadSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                const data = await res.json();
+                if (data.success && data.settings) {
+                    globalSettings = data.settings;
+                    initAppGrid();
+                    const bannerContainer = document.getElementById('home-banner-container');
+                    const bannerImg = document.getElementById('home-banner');
+                    if (data.settings.bannerUrl && data.settings.bannerUrl.trim() !== '') {
+                        bannerImg.src = data.settings.bannerUrl;
+                        bannerContainer.classList.remove('hidden');
+                    } else {
+                        bannerContainer.classList.add('hidden');
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading settings:", err);
+            }
+        }
+
         document.getElementById('screen-service').classList.add('content-hidden');
         initAppGrid();
+        loadSettings();
     </script>
 </body>
 
