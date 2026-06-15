@@ -472,6 +472,117 @@ app.get('/admin', (req, res) => {
                     </div>
                 </div>
  
+                <!-- คู่มือตั้งค่า Gmail (Gmail Tab Only) -->
+                <div x-show="emailTab === 'Gmail'" class="mb-6" x-transition>
+                    <div class="rounded-2xl border border-blue-200 overflow-hidden shadow-sm">
+                        <!-- Header Toggle -->
+                        <button @click="showGmailGuide = !showGmailGuide" class="w-full flex items-center justify-between p-4 md:p-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 transition-all">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V19.5A2.25 2.25 0 0010.5 21h6a2.25 2.25 0 002.25-2.25v-.75M12 12.75h.008v.008H12v-.008z" /></svg>
+                                </div>
+                                <div class="text-left">
+                                    <div class="font-bold text-base">วิธีตั้งค่า Gmail App Password สำหรับลูกค้า</div>
+                                    <div class="text-blue-100 text-xs mt-0.5">คลิกเพื่อดูคู่มือทีละขั้นตอน</div>
+                                </div>
+                            </div>
+                            <svg class="w-5 h-5 transition-transform duration-300" :class="showGmailGuide ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+
+                        <!-- Guide Content -->
+                        <div x-show="showGmailGuide" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="bg-white p-5 md:p-6">
+
+                            <!-- Intro note -->
+                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-5 flex items-start space-x-3">
+                                <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                                <div>
+                                    <div class="font-bold text-amber-800 text-sm">สิ่งที่ต้องทำ ก่อนเพิ่มอีเมล Gmail เข้าระบบ</div>
+                                    <div class="text-amber-700 text-xs mt-1">ลูกค้าต้องสร้าง <strong>App Password</strong> จาก Google Account ก่อน เพื่อให้ระบบสามารถเชื่อมต่อกล่องจดหมายได้อัตโนมัติ</div>
+                                </div>
+                            </div>
+
+                            <!-- Steps -->
+                            <div class="space-y-5">
+
+                                <!-- Step 1 -->
+                                <div class="flex gap-4 items-start">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">1</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">เข้าไปที่ Google Account ของคุณ</div>
+                                        <div class="text-sm text-gray-500 mb-2">เปิดบราวเซอร์แล้วไปที่ <a href="https://myaccount.google.com" target="_blank" class="text-blue-600 font-bold hover:underline">myaccount.google.com</a> เข้าสู่บัญชี Google ของคุณให้เรียบร้อย</div>
+                                    </div>
+                                </div>
+
+                                <!-- Step 2 -->
+                                <div class="flex gap-4 items-start">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">2</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">เปิด “การยืนยันตัวตนแบบ 2 ขั้นตอน” (2-Step Verification)</div>
+                                        <div class="text-sm text-gray-500 mb-2">ไปที่เมนู <strong>ความปลอดภัย (Security)</strong> แล้วเปิดใช้งาน <strong>การยืนยันตัวตนแบบ 2 ขั้นตอน</strong> ถ้ายังไม่ได้เปิด</div>
+                                        <img src="/gmail_guide_step1.png" class="w-full max-w-sm rounded-xl border border-gray-200 shadow-sm mt-2" alt="Google Security Settings" onerror="this.style.display='none'">
+                                    </div>
+                                </div>
+
+                                <!-- Step 3 -->
+                                <div class="flex gap-4 items-start">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">3</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">ค้นหา “รหัสผ่านสำหรับแอป” (App passwords)</div>
+                                        <div class="text-sm text-gray-500 mb-2">หลังจากเปิด 2-Step Verification แล้ว ให้เลื่อนลงมาด้านล่างแล้วคลิกที่ <strong class="text-blue-700">รหัสผ่านสำหรับแอป</strong> หรือไปที่ <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-blue-600 font-bold hover:underline">myaccount.google.com/apppasswords</a></div>
+                                    </div>
+                                </div>
+
+                                <!-- Step 4 -->
+                                <div class="flex gap-4 items-start">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">4</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">สร้าง App Password ใหม่</div>
+                                        <div class="text-sm text-gray-500 mb-2">ใส่ชื่อแอปเป็น <strong>OTP System</strong> แล้วกดปุ่ม <strong>สร้าง</strong> ระบบจะสร้างรหัสผ่าน 16 หลัก ให้คัดลอกไว้ทันที</div>
+                                        <img src="/gmail_guide_step2.png" class="w-full max-w-sm rounded-xl border border-gray-200 shadow-sm mt-2" alt="App Password Creation" onerror="this.style.display='none'">
+                                    </div>
+                                </div>
+
+                                <!-- Step 5 -->
+                                <div class="flex gap-4 items-start">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-black text-sm">5</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">ส่งข้อมูลให้ Admin</div>
+                                        <div class="text-sm text-gray-500 mb-3">แจ้ง Admin ให้ทราบโดยส่งข้อมูลดังนี้</div>
+                                        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2.5">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                                    <svg class="w-3.5 h-3.5 text-red-500" viewBox="0 0 24 24" fill="currentColor"><path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z"/><path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z"/></svg>
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs text-gray-400 font-bold">Gmail Address</div>
+                                                    <div class="text-sm font-bold text-gray-800">yourname@gmail.com</div>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-6 h-6 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                                    <svg class="w-3.5 h-3.5 text-yellow-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
+                                                </div>
+                                                <div>
+                                                    <div class="text-xs text-gray-400 font-bold">App Password (16 หลัก)</div>
+                                                    <div class="text-sm font-bold text-yellow-700 tracking-widest font-mono">xxxx xxxx xxxx xxxx</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div><!-- end steps -->
+
+                            <!-- Footer note -->
+                            <div class="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+                                <div class="text-xs text-gray-400">รหัสผ่านนี้ใช้ในการเชื่อมต่อ Gmail ชั่วคราว (ไม่ใช่รหัสผ่าน Gmail จริงของคุณ)</div>
+                                <a href="https://support.google.com/accounts/answer/185833" target="_blank" class="text-blue-600 text-xs font-bold hover:underline flex items-center gap-1">อ่านคู่มือ Google อีกครั้ง →</a>
+                            </div>
+
+                        </div><!-- end guide content -->
+                    </div>
+                </div><!-- end guide section -->
+ 
                 <!-- แสดงผลตาราง (Desktop) หรือการ์ด (Mobile) -->
                 <!-- ตารางอีเมล (Desktop - lg ขึ้นไป) -->
                 <div class="hidden lg:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
@@ -837,7 +948,7 @@ app.get('/admin', (req, res) => {
                 inboxPage: 1, inboxPerPage: 10,
                 historyPage: 1, historyPerPage: 10,
                 emailPage: 1, emailPerPage: 10,
-                bannerFileName: 'ยังไม่ได้เลือกไฟล์', bannerImageData: '',
+                bannerFileName: 'ยังไม่ได้เลือกไฟล์', bannerImageData: '', showGmailGuide: false,
 
                 async login() {
                     const res = await fetch('/api/admin/login', {
