@@ -120,8 +120,10 @@ function saveDB(data) {
 
 function logToInbox(email, service, code, system) {
     const db = getDB();
+    const now = Date.now();
     const msg = {
-        id: Date.now().toString(),
+        id: now.toString(),
+        timestamp: now,
         time: new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }),
         from: `no-reply@${service}.com`,
         to: email,
@@ -195,7 +197,28 @@ app.get('/api/get-otp', async (req, res) => {
     saveDB(db);
     logToInbox(email, service, otpCode, systemType);
 
-    res.json({ success: true, code: otpCode });
+    // ดึง OTP ย้อนหลัง 10 นาที (ยกเว้นอันที่เพิ่งสร้าง)
+    const tenMinMs = 10 * 60 * 1000;
+    const nowMs = Date.now();
+    const freshDB = getDB();
+    const recentOtps = freshDB.inbox
+        .filter(m => {
+            if (m.to !== email) return false;
+            if (!m.subject.toLowerCase().includes(service)) return false;
+            const ts = m.timestamp ? m.timestamp : (nowMs - tenMinMs - 1); // old entries without timestamp are excluded
+            const age = nowMs - ts;
+            return age > 1000 && age <= tenMinMs; // exclude the one just created (age > 1s)
+        })
+        .slice(0, 9)
+        .map(m => {
+            const codeMatch = m.message.match(/\b\d{4,6}\b/);
+            const ts = m.timestamp || null;
+            const minutesAgo = ts ? Math.round((nowMs - ts) / 60000) : null;
+            return codeMatch ? { code: codeMatch[0], time: m.time, timestamp: ts, minutesAgo } : null;
+        })
+        .filter(Boolean);
+
+    res.json({ success: true, code: otpCode, recentOtps });
 });
 
 app.get('/api/settings', (req, res) => {
@@ -580,23 +603,24 @@ app.get('/admin', (req, res) => {
  
                 <div class="space-y-4">
                     <template x-for="msg in paginatedInbox" :key="msg.id">
-                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col relative hover:shadow-md transition-shadow">
-                            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-2.5">
-                                <div class="text-sm space-y-0.5">
-                                    <div class="font-bold text-gray-800 break-all"><span class="text-blue-500 w-12 inline-block font-bold">ผู้ส่ง:</span> <span x-text="msg.from"></span></div>
-                                    <div class="font-bold text-gray-800 break-all"><span class="text-red-500 w-12 inline-block font-bold">ผู้รับ:</span> <span x-text="msg.to"></span></div>
+                        <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-200 flex flex-col relative hover:shadow-md transition-shadow">
+                            <div class="flex items-start justify-between mb-1.5">
+                                <div class="text-sm flex-1 min-w-0 pr-2">
+                                    <div class="font-bold text-gray-800 break-all text-xs leading-5"><span class="text-blue-500 font-bold">ผู้ส่ง:</span> <span x-text="msg.from"></span></div>
+                                    <div class="font-bold text-gray-800 break-all text-xs leading-5"><span class="text-red-500 font-bold">ผู้รับ:</span> <span x-text="msg.to"></span></div>
                                 </div>
-                                <div class="flex items-center justify-between sm:justify-end gap-2 border-t sm:border-0 pt-2 sm:pt-0">
-                                    <div class="text-xs text-gray-500 font-bold bg-gray-100 px-2.5 py-1 rounded-lg flex items-center">
-                                        <svg class="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> <span x-text="msg.time"></span>
+                                <div class="flex items-center gap-1.5 flex-shrink-0">
+                                    <div class="text-xs text-gray-500 font-bold bg-gray-100 px-2 py-1 rounded-lg flex items-center">
+                                        <svg class="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        <span x-text="msg.time" class="text-[10px]"></span>
                                     </div>
                                     <button @click="deleteInbox(msg.id)" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-all" title="ลบข้อความนี้">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                                     </button>
                                 </div>
                             </div>
-                            <div class="text-xs font-bold text-gray-500 mb-2 border-t pt-2" x-text="'หัวข้ออีเมล: ' + msg.subject"></div>
-                            <div class="text-gray-600 bg-blue-50/50 p-3 rounded-lg border border-blue-100 font-medium text-xs whitespace-pre-wrap break-all max-h-24 overflow-y-auto" x-text="msg.message"></div>
+                            <div class="text-xs font-bold text-gray-500 mb-1.5 border-t pt-1.5" x-text="'หัวข้อ: ' + msg.subject"></div>
+                            <div class="text-gray-600 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100 font-medium text-xs whitespace-pre-wrap break-all max-h-20 overflow-y-auto" x-text="msg.message"></div>
                         </div>
                     </template>
                     <div x-show="filteredInbox.length === 0" class="text-center text-gray-400 py-10 font-bold bg-white rounded-2xl border border-gray-200 border-dashed">ไม่พบข้อความอีเมล</div>
@@ -633,24 +657,31 @@ app.get('/admin', (req, res) => {
  
                 <!-- ตารางประวัติ (Desktop) -->
                 <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                    <table class="w-full text-left">
+                    <table class="w-full text-left table-fixed">
+                        <colgroup>
+                            <col class="w-36">
+                            <col class="w-auto">
+                            <col class="w-24">
+                            <col class="w-20">
+                            <col class="w-28">
+                        </colgroup>
                         <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
                             <tr>
-                                <th class="p-3.5 font-bold text-sm">วันที่ / เวลา</th>
-                                <th class="p-3.5 font-bold text-sm">บัญชีอีเมล</th>
-                                <th class="p-3.5 font-bold text-sm">ชื่ออุปกรณ์</th>
-                                <th class="p-3.5 font-bold text-sm text-center">บริการ</th>
-                                <th class="p-3.5 font-bold text-sm text-center">รหัสที่แสดง</th>
+                                <th class="p-3 font-bold text-xs">วันที่ / เวลา</th>
+                                <th class="p-3 font-bold text-xs">บัญชีอีเมล</th>
+                                <th class="p-3 font-bold text-xs">ชื่ออุปกรณ์</th>
+                                <th class="p-3 font-bold text-xs text-center">บริการ</th>
+                                <th class="p-3 font-bold text-xs text-center">รหัสที่แสดง</th>
                             </tr>
                         </thead>
                         <tbody>
                             <template x-for="h in paginatedHistory">
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                    <td class="p-3.5 text-sm font-medium text-gray-500" x-text="h.time"></td>
-                                    <td class="p-3.5 font-bold text-gray-800" x-text="h.email"></td>
-                                    <td class="p-3.5 font-bold text-gray-700" x-text="h.device"></td>
-                                    <td class="p-3.5 font-bold text-gray-700 text-center capitalize" x-text="h.service"></td>
-                                    <td class="p-3.5 font-black tracking-widest text-xl text-emerald-600 text-center" x-text="h.otp"></td>
+                                    <td class="p-3 text-xs font-medium text-gray-500 whitespace-nowrap overflow-hidden" x-text="h.time"></td>
+                                    <td class="p-3 font-bold text-gray-800 text-sm overflow-hidden"><div class="truncate" x-text="h.email" :title="h.email"></div></td>
+                                    <td class="p-3 font-bold text-gray-700 text-sm overflow-hidden"><div class="truncate" x-text="h.device" :title="h.device"></div></td>
+                                    <td class="p-3 font-bold text-gray-700 text-xs text-center capitalize" x-text="h.service"></td>
+                                    <td class="p-3 font-black tracking-widest text-lg text-emerald-600 text-center" x-text="h.otp"></td>
                                 </tr>
                             </template>
                             <tr x-show="filteredHistory.length === 0">

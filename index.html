@@ -283,8 +283,10 @@
                 if (data.success) {
                     closePinModal();
                     const now = new Date();
+                    const nowMs = Date.now();
                     const newOtp = {
-                        id: Date.now(),
+                        id: nowMs,
+                        timestamp: nowMs,
                         time: now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.',
                         date: now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
                         title: `รหัสเข้าใช้งาน ${activeService.name}`,
@@ -292,6 +294,28 @@
                         service: activeService.id
                     };
                     otpList.unshift(newOtp);
+                    // เพิ่ม OTP ย้อนหลัง 10 นาที จาก backend
+                    if (data.recentOtps && data.recentOtps.length > 0) {
+                        data.recentOtps.forEach(r => {
+                            // หลีกเลี่ยงรหัสซ้ำ
+                            const exists = otpList.find(o => o.code === r.code && o.service === activeService.id);
+                            if (!exists) {
+                                const rTime = r.timestamp ? new Date(r.timestamp) : new Date();
+                                otpList.push({
+                                    id: r.timestamp || (nowMs - Math.random() * 1000),
+                                    timestamp: r.timestamp || null,
+                                    time: rTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.',
+                                    date: rTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                                    title: `รหัสเข้าใช้งาน ${activeService.name}`,
+                                    code: r.code,
+                                    service: activeService.id,
+                                    minutesAgo: r.minutesAgo
+                                });
+                            }
+                        });
+                        // เรียงจากใหม่อัดก่าอัด (timestamp มากก่าอยู่หน้า)
+                        otpList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                    }
                     renderOTPList(); startCooldown();
                 } else {
                     if (reqData.pin !== '') {
@@ -403,12 +427,26 @@
                 container.innerHTML = `<div class="text-center text-neutral-500 py-10 bg-white/50 dark:bg-neutral-900/40 rounded-2xl border border-neutral-200 dark:border-neutral-800 border-dashed backdrop-blur-sm">ยังไม่มีข้อความสำหรับบริการนี้</div>`;
                 return;
             }
-            container.innerHTML = filtered.map((item, index) => `
-                <div class="bg-white dark:bg-neutral-900/80 border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 rounded-2xl overflow-hidden transition-all duration-300 animate-slideUpFade opacity-0" style="animation-delay: ${index * 0.1}s" onclick="toggleCard(${item.id})">
+            const nowMs = Date.now();
+            const tenMinMs = 10 * 60 * 1000;
+            container.innerHTML = filtered.map((item, index) => {
+                const ageMs = item.timestamp ? (nowMs - item.timestamp) : -1;
+                const isWithin10Min = ageMs >= 0 && ageMs <= tenMinMs;
+                const isNewest = index === 0;
+                let badgeHtml = '';
+                if (isNewest) {
+                    badgeHtml = `<span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-xs rounded-md shadow-sm font-bold">ล่าสุด</span>`;
+                } else if (isWithin10Min) {
+                    const minutesAgo = item.minutesAgo !== undefined ? item.minutesAgo : Math.round(ageMs / 60000);
+                    const label = minutesAgo <= 0 ? 'เมื่ออีกสักครู่' : `เมื่อ ${minutesAgo} น. ที่แล้ว`;
+                    badgeHtml = `<span class="px-2 py-0.5 bg-yellow-50 text-yellow-600 text-xs rounded-md shadow-sm font-bold">${label}</span>`;
+                }
+                return `
+                <div class="bg-white dark:bg-neutral-900/80 border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 rounded-2xl overflow-hidden transition-all duration-300 animate-slideUpFade opacity-0" style="animation-delay: ${index * 0.08}s" onclick="toggleCard(${item.id})">
                     <div class="p-4 flex items-start gap-4 cursor-pointer">
                         <div class="w-12 h-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative"><img src="${activeService.localImage}" onerror="this.src='https://placehold.co/100x100/png'" class="w-full h-full object-cover transform scale-110"></div>
                         <div class="flex-1">
-                            <div class="flex justify-between mb-1"><span class="text-sm font-medium text-neutral-600 dark:text-neutral-300">${item.date} ${item.time}</span> <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-xs rounded-md shadow-sm font-bold">ล่าสุด</span></div>
+                            <div class="flex justify-between mb-1"><span class="text-sm font-medium text-neutral-600 dark:text-neutral-300">${item.date} ${item.time}</span> ${badgeHtml}</div>
                             <p class="text-base font-bold text-neutral-900 dark:text-white">${item.title}</p>
                         </div>
                         <svg id="arrow-${item.id}" class="w-5 h-5 mt-2 text-neutral-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
@@ -420,7 +458,8 @@
                         </div>
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function openPinModal() {
