@@ -281,7 +281,7 @@ app.get('/admin', (req, res) => {
             <input type="password" x-model="loginPass" placeholder="Password" class="w-full p-4 border border-gray-200 rounded-xl mb-6 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-left" @keyup.enter="login()">
             <button @click="login()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-lg">เข้าสู่ระบบ</button>
             <p x-show="loginError" class="text-red-500 text-sm mt-4 font-bold bg-red-50 py-2 rounded-lg">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!</p>
-            <a href="/" class="block mt-6 text-sm text-gray-500 hover:text-blue-500 hover:underline font-medium">กลับไปหน้าฝั่งลูกค้า</a>
+            <a href="/" class="block mt-6 text-sm text-gray-500 hover:text-blue-500 hover:underline font-medium">มุมมองผู้ใช้งาน</a>
         </div>
     </div>
 
