@@ -71,7 +71,7 @@
     <div class="w-full max-w-md p-4 min-h-screen flex flex-col relative z-10">
 
         <!-- Header: โลโก้ และ ปุ่มสามขีด -->
-        <div class="flex justify-between items-center py-4 mb-6 relative z-50">
+        <div class="flex justify-between items-center py-2 mb-3 relative z-50">
             <div class="relative flex items-center h-20 w-56">
                 <div id="main-brand-logo"
                     class="absolute left-0 flex items-center transition-all duration-300 transform origin-left h-20 w-auto">
@@ -140,8 +140,10 @@
 
         <!-- หน้าแรก -->
         <div id="screen-home" class="flex-1 flex flex-col items-center content-transition w-full animate-slideUpFade">
-            <div id="home-banner-container" class="w-full mb-6 hidden">
-                <img id="home-banner" src="" class="w-full h-auto object-cover rounded-2xl shadow-sm border border-neutral-100 dark:border-neutral-800" alt="Banner" />
+            <div id="home-banner-container" class="w-full mb-4 hidden">
+                <img id="home-banner" src=""
+                    class="w-full h-auto object-cover rounded-2xl shadow-sm border border-neutral-100 dark:border-neutral-800"
+                    alt="Banner" />
             </div>
             <div id="app-grid" class="w-full space-y-4"></div>
         </div>
@@ -221,7 +223,7 @@
     </div>
 
     <script>
-        // ⚡️ เพิ่มลิงก์ระบบหลังบ้านตรงนี้ (ดึงจาก origin ปัจจุบันของหน้าเว็บโดยอัตโนมัติ)
+        // ⚡️ เพิ่มลิงค์ระบบหลังบ้านตรงนี้ (ดึงจาก origin ปัจจุบันของหน้าเว็บโดยอัตโนมัติ)
         const BASE_URL = window.location.origin;
 
         const SERVICES = [

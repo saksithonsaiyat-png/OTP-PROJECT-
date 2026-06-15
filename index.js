@@ -87,8 +87,8 @@ async function getRealOTP(service, targetEmail) {
 
 // เปิดใช้งาน CORS ให้ทุกโดเมนสามารถยิง API มาหาหลังบ้านได้
 app.use(cors({ origin: '*' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static(__dirname));
 
 // ==========================================
@@ -201,6 +201,21 @@ app.get('/api/get-otp', async (req, res) => {
 app.get('/api/settings', (req, res) => {
     const db = getDB();
     res.json({ success: true, settings: db.globalSettings });
+});
+
+app.post('/api/admin/upload-banner', (req, res) => {
+    const { image } = req.body;
+    if (!image) return res.status(400).json({ success: false, error: 'ไม่มีข้อมูลรูปภาพ' });
+    try {
+        const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+        fs.writeFileSync(path.join(__dirname, 'banner.png'), base64Data, 'base64');
+        const db = getDB();
+        db.globalSettings.bannerUrl = './banner.png';
+        saveDB(db);
+        res.json({ success: true, bannerUrl: './banner.png' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 // ==========================================
@@ -415,8 +430,8 @@ app.get('/admin', (req, res) => {
                 
                 <!-- แท็บแยกระบบอีเมล -->
                 <div class="flex space-x-2 mb-6 bg-white p-2 rounded-xl shadow-sm border border-gray-200 inline-flex w-auto max-w-full overflow-x-auto no-scrollbar">
-                    <button @click="emailTab = 'Gmail'" :class="emailTab=='Gmail'?'bg-red-500 text-white shadow-md':'bg-transparent text-gray-600 hover:bg-gray-100'" class="px-5 md:px-8 py-2.5 md:py-3 rounded-lg font-bold transition-all text-sm md:text-base whitespace-nowrap">อีเมลจาก Gmail</button>
-                    <button @click="emailTab = 'MailySpace'" :class="emailTab=='MailySpace'?'bg-blue-600 text-white shadow-md':'bg-transparent text-gray-600 hover:bg-gray-100'" class="px-5 md:px-8 py-2.5 md:py-3 rounded-lg font-bold transition-all text-sm md:text-base whitespace-nowrap">อีเมลโดเมนจาก Maily Space</button>
+                    <button @click="emailTab = 'Gmail'; emailPage = 1" :class="emailTab=='Gmail'?'bg-red-500 text-white shadow-md':'bg-transparent text-gray-600 hover:bg-gray-100'" class="px-5 md:px-8 py-2.5 md:py-3 rounded-lg font-bold transition-all text-sm md:text-base whitespace-nowrap">อีเมลจาก Gmail</button>
+                    <button @click="emailTab = 'MailySpace'; emailPage = 1" :class="emailTab=='MailySpace'?'bg-blue-600 text-white shadow-md':'bg-transparent text-gray-600 hover:bg-gray-100'" class="px-5 md:px-8 py-2.5 md:py-3 rounded-lg font-bold transition-all text-sm md:text-base whitespace-nowrap">อีเมลโดเมนจาก Maily Space</button>
                 </div>
  
                 <!-- กล่องเพิ่มอีเมล และ ช่องค้นหา -->
@@ -430,7 +445,7 @@ app.get('/admin', (req, res) => {
                     </div>
                     <div class="col-span-1 md:col-span-2 flex flex-col justify-end bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <label class="text-sm font-bold text-gray-600 block mb-1">ค้นหาเมล</label>
-                        <input type="text" x-model="searchEmail" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-xl border border-gray-300 outline-none focus:border-blue-500 transition-all font-medium">
+                        <input type="text" x-model="searchEmail" @input="emailPage = 1" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-xl border border-gray-300 outline-none focus:border-blue-500 transition-all font-medium">
                     </div>
                 </div>
  
@@ -448,7 +463,7 @@ app.get('/admin', (req, res) => {
                             </tr>
                         </thead>
                         <tbody>
-                            <template x-for="e in filteredEmails" :key="e.id">
+                            <template x-for="e in paginatedEmails" :key="e.id">
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                     <td class="p-5 font-bold text-gray-800 text-lg" x-text="e.email"></td>
                                     
@@ -484,7 +499,7 @@ app.get('/admin', (req, res) => {
                                     </td>
                                 </tr>
                             </template>
-                            <tr x-show="filteredEmails.length === 0">
+                            <tr x-show="paginatedEmails.length === 0">
                                 <td colspan="5" class="p-8 text-center text-gray-400 font-bold">ยังไม่มีรายชื่ออีเมลในระบบนี้</td>
                             </tr>
                         </tbody>
@@ -493,7 +508,7 @@ app.get('/admin', (req, res) => {
 
                 <!-- การ์ดรายการอีเมล (Mobile - lg ลงไป) -->
                 <div class="lg:hidden grid grid-cols-1 gap-4">
-                    <template x-for="e in filteredEmails" :key="e.id">
+                    <template x-for="e in paginatedEmails" :key="e.id">
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 flex flex-col space-y-4 relative">
                             <div class="flex justify-between items-start">
                                 <div class="break-all font-bold text-gray-800 text-base pr-8" x-text="e.email"></div>
@@ -503,7 +518,7 @@ app.get('/admin', (req, res) => {
                             </div>
                             
                             <div class="flex items-center justify-between border-t border-gray-100 pt-3">
-                                <span class="text-sm font-bold text-gray-500">สถานะบริการ:</span>
+                                <span class="text-sm font-bold text-gray-500">สถานะบริการ</span>
                                 <button @click="e.isActive = !e.isActive; saveEmail(e)" 
                                         :class="e.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'" 
                                         class="px-4 py-2 rounded-full text-xs font-bold shadow-sm transition-all hover:scale-105 flex items-center space-x-1">
@@ -513,7 +528,7 @@ app.get('/admin', (req, res) => {
                             </div>
                             
                             <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
-                                <span class="text-sm font-bold text-gray-500">จัดการบริการแยกแอป:</span>
+                                <span class="text-sm font-bold text-gray-500">จัดการบริการ</span>
                                 <div class="grid grid-cols-4 gap-1.5">
                                     <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-blue-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">Disney</button>
                                     <button @click="e.services.chatgpt = !e.services.chatgpt; saveEmail(e)" :class="e.services.chatgpt?'bg-emerald-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">GPT</button>
@@ -523,7 +538,7 @@ app.get('/admin', (req, res) => {
                             </div>
 
                             <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
-                                <span class="text-sm font-bold text-gray-500">รหัส PIN ความปลอดภัย:</span>
+                                <span class="text-sm font-bold text-gray-500">รหัส PIN ความปลอดภัย</span>
                                 <div class="flex items-center space-x-2">
                                     <input type="text" x-model="e.pin" maxlength="6" placeholder="ไม่ตั้ง PIN" class="border border-gray-300 rounded-lg p-2.5 flex-1 text-center font-bold tracking-widest text-sm outline-none focus:border-blue-500 bg-white">
                                     <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-3 py-2.5 rounded-lg text-xs font-bold transition-all shrink-0">บันทึก</button>
@@ -532,6 +547,26 @@ app.get('/admin', (req, res) => {
                         </div>
                     </template>
                     <div x-show="filteredEmails.length === 0" class="text-center text-gray-400 py-10 font-bold bg-white rounded-2xl border border-gray-200 border-dashed">ยังไม่มีรายชื่ออีเมลในระบบนี้</div>
+                </div>
+
+                <!-- Pagination for Emails -->
+                <div x-show="totalEmailPages > 1" class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
+                    <div class="text-xs font-bold text-gray-500">
+                        แสดงหน้า <span x-text="emailPage"></span> จาก <span x-text="totalEmailPages"></span> (ทั้งหมด <span x-text="filteredEmails.length"></span> รายการ)
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <button @click="emailPage = 1" :disabled="emailPage === 1" class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-bold text-xs bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">หน้าแรก</button>
+                        <button @click="if(emailPage > 1) emailPage--" :disabled="emailPage === 1" class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-bold text-xs bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">ก่อนหน้า</button>
+                        
+                        <template x-for="p in visibleEmailPages" :key="p">
+                            <button @click="emailPage = p" 
+                                    :class="emailPage === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'" 
+                                    class="w-8 h-8 rounded-lg border font-bold text-xs flex items-center justify-center transition-colors"
+                                    x-text="p"></button>
+                        </template>
+                        
+                        <button @click="if(emailPage < totalEmailPages) emailPage++" :disabled="emailPage === totalEmailPages" class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-bold text-xs bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">ถัดไป</button>
+                    </div>
                 </div>
             </div>
 
@@ -714,11 +749,26 @@ app.get('/admin', (req, res) => {
                     <h2 class="text-xl font-bold mb-4 text-gray-800">แบนเนอร์หน้าแรก</h2>
                     <div class="space-y-4">
                         <div>
-                            <label class="text-sm font-bold text-gray-600 block mb-1">ลิงก์รูปภาพแบนเนอร์หน้าแรก (Banner Image URL หรือ Path)</label>
-                            <input type="text" x-model="db.globalSettings.bannerUrl" placeholder="ระบุ URL ของแบนเนอร์ เช่น ./banner.png หรือ https://..." class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800">
+                            <label class="text-sm font-bold text-gray-600 block mb-1">ลิงก์รูปภาพแบนเนอร์หน้าแรก | ขนาด 160 x 600 px</label>
+                            <div class="space-y-3">
+                                <div class="flex items-center gap-3">
+                                    <input type="file" id="banner-file-input" accept="image/*" class="hidden" @change="onBannerFileSelected($event)">
+                                    <button type="button" @click="document.getElementById('banner-file-input').click()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 px-5 rounded-xl border border-gray-300 transition-all text-sm shadow-sm flex items-center space-x-2">
+                                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>
+                                        <span>เลือกไฟล์รูปภาพแบนเนอร์</span>
+                                    </button>
+                                    <span class="text-sm font-medium text-gray-500 break-all" x-text="bannerFileName"></span>
+                                </div>
+                                <template x-if="bannerImageData || db.globalSettings.bannerUrl">
+                                    <div class="mt-3">
+                                        <span class="text-xs text-gray-400 block mb-1">ตัวอย่างภาพแบนเนอร์:</span>
+                                        <img :src="bannerImageData || db.globalSettings.bannerUrl" class="max-w-xs h-auto max-h-32 object-cover rounded-xl border border-gray-200 shadow-sm" />
+                                    </div>
+                                </template>
+                            </div>
                         </div>
                         <div class="pt-2">
-                            <button @click="saveSettings()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl shadow-md active:scale-95 transition-all">บันทึกรูปภาพแบนเนอร์</button>
+                            <button @click="uploadBanner()" class="bg-gray-800 hover:bg-black text-white font-bold py-3.5 rounded-xl shadow-md active:scale-95 transition-all w-full text-center">บันทึกรูปภาพแบนเนอร์</button>
                         </div>
                     </div>
                 </div>
@@ -755,6 +805,8 @@ app.get('/admin', (req, res) => {
                 newAdminUser: '', newAdminPass: '', adminSaved: false, mobileMenuOpen: false,
                 inboxPage: 1, inboxPerPage: 10,
                 historyPage: 1, historyPerPage: 10,
+                emailPage: 1, emailPerPage: 10,
+                bannerFileName: 'ยังไม่ได้เลือกไฟล์', bannerImageData: '',
 
                 async login() {
                     const res = await fetch('/api/admin/login', {
@@ -808,6 +860,52 @@ app.get('/admin', (req, res) => {
                 
                 get filteredEmails() {
                     return this.db.emails.filter(e => e.system === this.emailTab && e.email.toLowerCase().includes(this.searchEmail.toLowerCase()));
+                },
+                get paginatedEmails() {
+                    const start = (this.emailPage - 1) * this.emailPerPage;
+                    return this.filteredEmails.slice(start, start + this.emailPerPage);
+                },
+                get totalEmailPages() {
+                    return Math.ceil(this.filteredEmails.length / this.emailPerPage) || 1;
+                },
+                get visibleEmailPages() {
+                    return this.getVisiblePages(this.emailPage, this.totalEmailPages);
+                },
+                onBannerFileSelected(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.bannerFileName = file.name;
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            this.bannerImageData = e.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                },
+                async uploadBanner() {
+                    if (!this.bannerImageData) {
+                        alert('กรุณาเลือกไฟล์รูปภาพแบนเนอร์ก่อนกดบันทึก');
+                        return;
+                    }
+                    try {
+                        const res = await fetch('/api/admin/upload-banner', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ image: this.bannerImageData })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            this.db.globalSettings.bannerUrl = data.bannerUrl;
+                            this.bannerImageData = '';
+                            this.bannerFileName = 'ยังไม่ได้เลือกไฟล์';
+                            alert('บันทึกรูปภาพแบนเนอร์สำเร็จแล้ว!');
+                            this.loadData();
+                        } else {
+                            alert('เกิดข้อผิดพลาด: ' + data.error);
+                        }
+                    } catch (err) {
+                        alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์: ' + err.message);
+                    }
                 },
                 async saveEmail(emailObj) {
                     await fetch('/api/admin/update-email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(emailObj) });
