@@ -336,7 +336,7 @@
         function initAppGrid() {
             document.getElementById('app-grid').innerHTML = SERVICES.map((srv, index) => {
                 const isAvailable = globalSettings[srv.id] !== false;
-                const statusText = isAvailable ? 'พร้อมให้บริการ' : 'ไม่พร้อมใช้งาน';
+                const statusText = isAvailable ? 'พร้อมให้บริการ' : 'ไม่พร้อมให้บริการ';
                 const statusColor = isAvailable ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400';
                 const dotColor = isAvailable ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.7)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]';
                 const btnClasses = isAvailable
@@ -439,7 +439,7 @@
                     badgeHtml = `<span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-xs rounded-md shadow-sm font-bold">ล่าสุด</span>`;
                 } else if (isWithin10Min) {
                     const minutesAgo = item.minutesAgo !== undefined ? item.minutesAgo : Math.round(ageMs / 60000);
-                    const label = minutesAgo <= 0 ? 'เมื่ออีกสักครู่' : `เมื่อ ${minutesAgo} น. ที่แล้ว`;
+                    const label = minutesAgo <= 0 ? 'เมื่อสักครู่' : `เมื่อ ${minutesAgo} น. ที่แล้ว`;
                     badgeHtml = `<span class="px-2 py-0.5 bg-yellow-50 text-yellow-600 text-xs rounded-md shadow-sm font-bold">${label}</span>`;
                 }
                 return `
@@ -549,7 +549,7 @@
         eventSource.onmessage = function (event) {
             if (event.data === 'refresh') {
                 loadSettings();
-                
+
                 // If user is currently waiting for an OTP, update their OTP list in real-time
                 const emailInput = document.getElementById('email-input');
                 if (activeService && emailInput && emailInput.value.trim() !== '') {

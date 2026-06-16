@@ -4,7 +4,7 @@
     "password": "1234"
   },
   "globalSettings": {
-    "disney": true,
+    "disney": false,
     "chatgpt": true,
     "trueid": false,
     "youku": false,
