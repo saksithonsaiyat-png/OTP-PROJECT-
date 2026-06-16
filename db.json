@@ -7,7 +7,7 @@
     "disney": true,
     "chatgpt": true,
     "trueid": false,
-    "youku": true,
+    "youku": false,
     "bannerUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVGc6sjwFzcCDpVpMTR5C12CB34VPklMlDHaeh7h9dQ8ftbjFzmRSXqCO5&s=10",
     "contactUrl": "https://google.com",
     "guideUrl": "https://youtube.com",

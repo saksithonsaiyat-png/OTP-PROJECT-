@@ -1373,7 +1373,7 @@ app.get('/admin', (req, res) => {
  
                 <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 mb-8">
                     <h2 class="text-xl font-bold mb-4 text-gray-800">แบนเนอร์หน้าแรก</h2>
-                    <div class="space-y-4">
+                    <div class="space-y-4 max-w-md">
                         <div>
                             <label class="text-sm font-bold text-gray-600 block mb-1">ลิงก์รูปภาพแบนเนอร์หน้าแรก | ขนาด 160 x 600 px</label>
                             <div class="space-y-3">
