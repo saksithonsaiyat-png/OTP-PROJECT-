@@ -71,8 +71,8 @@
     <div class="w-full max-w-md p-4 min-h-screen flex flex-col relative z-10">
 
         <!-- Header: โลโก้ และ ปุ่มสามขีด -->
-        <div class="flex justify-between items-center py-2 mb-3 relative z-50">
-            <div class="relative flex items-center h-20 w-56">
+        <div class="flex justify-between items-center py-1 mb-1.5 relative z-50">
+            <div class="relative flex items-center h-20 w-64">
                 <div id="main-brand-logo"
                     class="absolute left-0 flex items-center transition-all duration-300 transform origin-left h-20 w-auto">
                     <img src="./logo-light.png" alt="Logo Light" class="h-full w-auto object-contain block dark:hidden"
@@ -113,7 +113,7 @@
                             <span class="hidden dark:inline">เปิดโหมดสว่าง</span>
                         </button>
 
-                        <a href="https://lin.ee/tNXgZoM" target="_blank" onclick="toggleMenu(event)"
+                        <a id="contact-link" href="https://lin.ee/tNXgZoM" target="_blank" onclick="toggleMenu(event)"
                             class="w-full flex items-center px-4 py-3 text-sm font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left border-t border-neutral-100 dark:border-neutral-800">
                             <span class="mr-3"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5"
                                     viewBox="0 0 24 24">
@@ -123,7 +123,8 @@
                             ติดต่อเรา
                         </a>
 
-                        <a href="https://drive.google.com/drive/folders/1S0FGZFR58UJDFgG2FxLC1HdhGlQmM5h_"
+                        <a id="guide-link"
+                            href="https://drive.google.com/drive/folders/1S0FGZFR58UJDFgG2FxLC1HdhGlQmM5h_"
                             target="_blank" onclick="toggleMenu(event)"
                             class="w-full flex items-center px-4 py-3 text-sm font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left border-t border-neutral-100 dark:border-neutral-800">
                             <span class="mr-3"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5"
@@ -150,7 +151,7 @@
 
         <!-- หน้าบริการ -->
         <div id="screen-service"
-            class="flex-1 flex flex-col items-center content-transition w-full hidden absolute top-[125px] left-0 px-4 pb-10 z-10">
+            class="flex-1 flex flex-col items-center content-transition w-full hidden absolute top-[100px] left-0 px-4 pb-10 z-10">
             <div id="main-logo-container"
                 class="w-24 h-24 rounded-2xl mb-4 flex items-center justify-center bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-0 overflow-hidden shadow-sm transition-all duration-700 relative">
                 <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover transform scale-110"
@@ -525,6 +526,14 @@
                     } else {
                         bannerContainer.classList.add('hidden');
                     }
+                    if (data.settings.contactUrl) {
+                        const contactLink = document.getElementById('contact-link');
+                        if (contactLink) contactLink.href = data.settings.contactUrl;
+                    }
+                    if (data.settings.guideUrl) {
+                        const guideLink = document.getElementById('guide-link');
+                        if (guideLink) guideLink.href = data.settings.guideUrl;
+                    }
                 }
             } catch (err) {
                 console.error("Error loading settings:", err);
@@ -534,6 +543,46 @@
         document.getElementById('screen-service').classList.add('content-hidden');
         initAppGrid();
         loadSettings();
+
+        // Setup Real-time Events Listener (SSE)
+        const eventSource = new EventSource('/api/events');
+        eventSource.onmessage = function (event) {
+            if (event.data === 'refresh') {
+                loadSettings();
+                
+                // If user is currently waiting for an OTP, update their OTP list in real-time
+                const emailInput = document.getElementById('email-input');
+                if (activeService && emailInput && emailInput.value.trim() !== '') {
+                    const email = emailInput.value.trim();
+                    fetch(`/api/recent-otps?email=${encodeURIComponent(email)}&service=${activeService.id}`)
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.success && data.recentOtps) {
+                                const nowMs = Date.now();
+                                data.recentOtps.forEach(r => {
+                                    const exists = otpList.find(o => o.code === r.code && o.service === activeService.id);
+                                    if (!exists) {
+                                        const rTime = r.timestamp ? new Date(r.timestamp) : new Date();
+                                        otpList.push({
+                                            id: r.timestamp || (nowMs - Math.random() * 1000),
+                                            timestamp: r.timestamp || null,
+                                            time: rTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.',
+                                            date: rTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                                            title: `รหัสเข้าใช้งาน ${activeService.name}`,
+                                            code: r.code,
+                                            service: activeService.id,
+                                            minutesAgo: r.minutesAgo
+                                        });
+                                    }
+                                });
+                                otpList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                                renderOTPList();
+                            }
+                        })
+                        .catch(err => console.error("Error fetching real-time OTPs:", err));
+                }
+            }
+        };
     </script>
 </body>
 

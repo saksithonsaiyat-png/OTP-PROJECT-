@@ -21,6 +21,7 @@
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "firebase-admin": "^14.0.0",
     "imap-simple": "^5.1.0",
     "mailparser": "^3.9.9"
   }

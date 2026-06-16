@@ -6,9 +6,16 @@
   "globalSettings": {
     "disney": true,
     "chatgpt": true,
-    "trueid": true,
+    "trueid": false,
     "youku": true,
-    "bannerUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVGc6sjwFzcCDpVpMTR5C12CB34VPklMlDHaeh7h9dQ8ftbjFzmRSXqCO5&s=10"
+    "bannerUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVGc6sjwFzcCDpVpMTR5C12CB34VPklMlDHaeh7h9dQ8ftbjFzmRSXqCO5&s=10",
+    "contactUrl": "https://google.com",
+    "guideUrl": "https://youtube.com",
+    "mailyHost": "mail.maily.space",
+    "mailyPort": 993,
+    "mailyUser": "aisstream",
+    "mailyPass": "testpassword123",
+    "mailyTls": true
   },
   "emails": [
     {
@@ -145,6 +152,34 @@
       "id": "1781538977206",
       "email": "test6@gmail.com",
       "system": "Gmail",
+      "isActive": true,
+      "pin": "",
+      "services": {
+        "disney": true,
+        "chatgpt": true,
+        "trueid": true,
+        "youku": true
+      }
+    },
+    {
+      "id": "1781614417916",
+      "email": "testagent@gmail.com",
+      "system": "Gmail",
+      "password": "newpassword 1234",
+      "isActive": true,
+      "pin": "",
+      "services": {
+        "disney": true,
+        "chatgpt": true,
+        "trueid": true,
+        "youku": true
+      }
+    },
+    {
+      "id": "1781616678959",
+      "email": "botfifa990@gmail.com",
+      "system": "Gmail",
+      "password": "zmhm apob sqsa ykzw",
       "isActive": true,
       "pin": "",
       "services": {

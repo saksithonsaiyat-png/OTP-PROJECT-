@@ -4,25 +4,40 @@ const path = require('path');
 const fs = require('fs');
 const imaps = require('imap-simple');
 const simpleParser = require('mailparser').simpleParser;
+const admin = require('firebase-admin');
 
 const app = express();
 const port = 3000;
 
 // ========================================================
-// ⚙️ ตั้งค่าบัญชีอีเมลหลักของร้าน (Maily.space)
+// ⚙️ ตั้งค่าบัญชีอีเมลหลักของร้าน (Maily.space) - ลิงก์เชื่อมโยงกับฐานข้อมูล
 // ========================================================
-const emailConfig = {
-    imap: {
-        // ⚠️ แก้ไข Username และ Password ของคุณที่นี่
-        user: 'aisstream', // หรืออาจจะต้องใส่เป็น aisstream@maily.space ลองดูครับ
-        password: 'YOUR_PASSWORD', // <--- ลบคำนี้ออก แล้วใส่รหัสผ่าน Natthanan@ ของคุณลงไปแทน
-        host: 'mail.maily.space',
-        port: 993,
-        tls: true,
-        authTimeout: 15000,
-        tlsOptions: { rejectUnauthorized: false }
+const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
+let firestoreDb = null;
+let isFirebaseActive = false;
+
+// SSE Client list for real-time notifications
+let sseClients = [];
+
+try {
+    if (fs.existsSync(serviceAccountPath)) {
+        const serviceAccount = require(serviceAccountPath);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        firestoreDb = admin.firestore();
+        isFirebaseActive = true;
+        console.log("🔥 [Firebase] Connected to Firestore successfully!");
+        // Run migration in the background
+        setTimeout(() => {
+            migrateLocalToFirestore();
+        }, 1000);
+    } else {
+        console.warn("⚠️ [Firebase] serviceAccountKey.json not found. Running in Local Mode (db.json).");
     }
-};
+} catch (err) {
+    console.error("🔥 [Firebase] Initialization error:", err.message);
+}
 
 const SENDER_EMAILS = {
     'disney': 'disneyplus@mail.disneyplus.com',
@@ -37,14 +52,49 @@ async function getRealOTP(service, targetEmail) {
         throw new Error('ไม่รองรับบริการนี้');
     }
 
-    if (emailConfig.imap.password === 'YOUR_PASSWORD') {
-        console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ IMAP Password is not configured. Falling back to Mock OTP.`);
-        return null;
+    const emails = await getEmails();
+    const emailObj = emails.find(e => e.email === targetEmail);
+
+    let activeConfig;
+    if (emailObj && emailObj.system === 'Gmail') {
+        if (!emailObj.password || emailObj.password.trim() === '') {
+            console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ Gmail App Password is not configured for ${targetEmail}.`);
+            throw new Error('กรุณาตั้งค่ารหัสผ่านสำหรับแอป (App Password) ของ Gmail บัญชีนี้ก่อนใช้งาน');
+        }
+        activeConfig = {
+            imap: {
+                user: emailObj.email,
+                password: emailObj.password.replace(/\s+/g, ''), // เอาเว้นวรรคออกหากมี
+                host: 'imap.gmail.com',
+                port: 993,
+                tls: true,
+                authTimeout: 15000,
+                tlsOptions: { rejectUnauthorized: false }
+            }
+        };
+    } else {
+        const globalSettings = await getGlobalSettings();
+        const dbMailyPass = globalSettings.mailyPass || '';
+        if (dbMailyPass === '' || dbMailyPass === 'YOUR_PASSWORD') {
+            console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ Central IMAP Password is not configured. Falling back to Mock OTP.`);
+            return null;
+        }
+        activeConfig = {
+            imap: {
+                user: globalSettings.mailyUser || 'aisstream',
+                password: dbMailyPass.replace(/\s+/g, ''),
+                host: globalSettings.mailyHost || 'mail.maily.space',
+                port: parseInt(globalSettings.mailyPort) || 993,
+                tls: globalSettings.mailyTls !== false,
+                authTimeout: 15000,
+                tlsOptions: { rejectUnauthorized: false }
+            }
+        };
     }
 
     try {
-        console.log(`[${new Date().toLocaleTimeString()}] ⏳ Connecting IMAP to find OTP of ${service} for ${targetEmail}...`);
-        const connection = await imaps.connect(emailConfig);
+        console.log(`[${new Date().toLocaleTimeString()}] ⏳ Connecting IMAP (${activeConfig.imap.host}) to find OTP of ${service} for ${targetEmail}...`);
+        const connection = await imaps.connect(activeConfig);
         await connection.openBox('INBOX');
 
         const searchCriteria = [
@@ -91,8 +141,64 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(__dirname));
 
+// Server-Sent Events (SSE) for Real-Time synchronization
+app.get('/api/events', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    sseClients.push(res);
+
+    req.on('close', () => {
+        sseClients = sseClients.filter(c => c !== res);
+    });
+});
+
+function broadcastEvent(data) {
+    sseClients.forEach(client => {
+        try {
+            client.write(`data: ${data}\n\n`);
+        } catch (e) {
+            console.error("Error writing to SSE client:", e.message);
+        }
+    });
+}
+
+// Fetch recent OTPs directly from DB (bypassing slow IMAP call)
+app.get('/api/recent-otps', async (req, res) => {
+    const { email, service } = req.query;
+    if (!email || !service) return res.status(400).json({ success: false, error: "ข้อมูลไม่ครบ" });
+
+    try {
+        const tenMinMs = 10 * 60 * 1000;
+        const nowMs = Date.now();
+        const inbox = await getInbox();
+        const recentOtps = inbox
+            .filter(m => {
+                if (m.to !== email) return false;
+                if (!m.subject.toLowerCase().includes(service)) return false;
+                const ts = m.timestamp ? m.timestamp : (nowMs - tenMinMs - 1);
+                const age = nowMs - ts;
+                return age >= 0 && age <= tenMinMs;
+            })
+            .slice(0, 9)
+            .map(m => {
+                const codeMatch = m.message.match(/\b\d{4,6}\b/);
+                const ts = m.timestamp || null;
+                const minutesAgo = ts ? Math.round((nowMs - ts) / 60000) : null;
+                return codeMatch ? { code: codeMatch[0], time: m.time, timestamp: ts, minutesAgo } : null;
+            })
+            .filter(Boolean);
+
+        res.json({ success: true, recentOtps });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // ==========================================
-// ระบบจัดการฐานข้อมูล (db.json)
+// ระบบจัดการฐานข้อมูล (db.json และ Firebase Firestore)
 // ==========================================
 const DB_FILE = path.join(__dirname, 'db.json');
 
@@ -118,8 +224,284 @@ function saveDB(data) {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
-function logToInbox(email, service, code, system) {
+// Database Helper functions (Dynamic Firebase / Local Fallback)
+async function getAdminConfig() {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            const doc = await firestoreDb.collection('settings').doc('admin').get();
+            if (doc.exists) return doc.data();
+        } catch (e) {
+            console.error("🔥 [Firebase] Error getting admin credentials, falling back to local:", e.message);
+        }
+    }
     const db = getDB();
+    return db.admin || defaultDB.admin;
+}
+
+async function saveAdminConfig(username, password) {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            await firestoreDb.collection('settings').doc('admin').set({ username, password });
+            return;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error saving admin credentials, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    db.admin = { username, password };
+    saveDB(db);
+}
+
+async function getGlobalSettings() {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            const doc = await firestoreDb.collection('settings').doc('global').get();
+            let settings = doc.exists ? doc.data() : {};
+            // Apply default fallbacks
+            if (!settings.contactUrl) settings.contactUrl = "https://lin.ee/tNXgZoM";
+            if (!settings.guideUrl) settings.guideUrl = "https://drive.google.com/drive/folders/1S0FGZFR58UJDFgG2FxLC1HdhGlQmM5h_";
+            if (!settings.mailyHost) settings.mailyHost = "mail.maily.space";
+            if (settings.mailyPort === undefined) settings.mailyPort = 993;
+            if (!settings.mailyUser) settings.mailyUser = "aisstream";
+            if (settings.mailyPass === undefined) settings.mailyPass = "";
+            if (settings.mailyTls === undefined) settings.mailyTls = true;
+            return settings;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error getting global settings, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    if (!db.globalSettings.contactUrl) db.globalSettings.contactUrl = "https://lin.ee/tNXgZoM";
+    if (!db.globalSettings.guideUrl) db.globalSettings.guideUrl = "https://drive.google.com/drive/folders/1S0FGZFR58UJDFgG2FxLC1HdhGlQmM5h_";
+    if (!db.globalSettings.mailyHost) db.globalSettings.mailyHost = "mail.maily.space";
+    if (db.globalSettings.mailyPort === undefined) db.globalSettings.mailyPort = 993;
+    if (!db.globalSettings.mailyUser) db.globalSettings.mailyUser = "aisstream";
+    if (db.globalSettings.mailyPass === undefined) db.globalSettings.mailyPass = "";
+    if (db.globalSettings.mailyTls === undefined) db.globalSettings.mailyTls = true;
+    return db.globalSettings;
+}
+
+async function saveGlobalSettings(settings) {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            await firestoreDb.collection('settings').doc('global').set(settings);
+            return;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error saving global settings, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    db.globalSettings = settings;
+    saveDB(db);
+}
+
+async function getEmails() {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            const snapshot = await firestoreDb.collection('emails').get();
+            const list = [];
+            snapshot.forEach(doc => {
+                list.push({ id: doc.id, ...doc.data() });
+            });
+            return list;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error getting emails list, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    return db.emails || [];
+}
+
+async function saveEmail(emailObj) {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            const id = emailObj.id;
+            const data = { ...emailObj };
+            delete data.id;
+            await firestoreDb.collection('emails').doc(id).set(data);
+            return;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error saving email, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    const idx = db.emails.findIndex(e => e.id === emailObj.id);
+    if (idx !== -1) {
+        db.emails[idx] = emailObj;
+    } else {
+        db.emails.push(emailObj);
+    }
+    saveDB(db);
+}
+
+async function deleteEmail(id) {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            await firestoreDb.collection('emails').doc(id).delete();
+            return;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error deleting email, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    db.emails = db.emails.filter(e => e.id !== id);
+    saveDB(db);
+}
+
+async function getHistory() {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            const snapshot = await firestoreDb.collection('history').orderBy('timestamp', 'desc').limit(200).get();
+            const list = [];
+            snapshot.forEach(doc => {
+                list.push({ id: doc.id, ...doc.data() });
+            });
+            return list;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error getting history, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    return db.history || [];
+}
+
+async function addHistory(historyObj) {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            const data = { ...historyObj };
+            if (!data.timestamp) data.timestamp = Date.now();
+            await firestoreDb.collection('history').add(data);
+            return;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error adding history, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    db.history.unshift(historyObj);
+    saveDB(db);
+}
+
+async function getInbox() {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            const snapshot = await firestoreDb.collection('inbox').orderBy('timestamp', 'desc').limit(200).get();
+            const list = [];
+            snapshot.forEach(doc => {
+                list.push({ id: doc.id, ...doc.data() });
+            });
+            return list;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error getting inbox, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    return db.inbox || [];
+}
+
+async function addInbox(inboxObj) {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            const id = inboxObj.id || Date.now().toString();
+            const data = { ...inboxObj };
+            delete data.id;
+            await firestoreDb.collection('inbox').doc(id).set(data);
+            return;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error adding inbox, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    db.inbox.unshift(inboxObj);
+    saveDB(db);
+}
+
+async function deleteInbox(id) {
+    if (isFirebaseActive && firestoreDb) {
+        try {
+            await firestoreDb.collection('inbox').doc(id).delete();
+            return;
+        } catch (e) {
+            console.error("🔥 [Firebase] Error deleting inbox message, falling back to local:", e.message);
+        }
+    }
+    const db = getDB();
+    db.inbox = db.inbox.filter(m => m.id !== id);
+    saveDB(db);
+}
+
+async function migrateLocalToFirestore() {
+    try {
+        console.log("⏳ [Firebase] Checking if Firestore migration is needed...");
+        const adminDoc = await firestoreDb.collection('settings').doc('admin').get();
+        if (adminDoc.exists) {
+            console.log("✅ [Firebase] Firestore already has data. Migration skipped.");
+            return;
+        }
+
+        console.log("🚚 [Firebase] Firestore is empty! Starting migration from local db.json...");
+        const db = getDB();
+
+        // 1. Admin
+        await firestoreDb.collection('settings').doc('admin').set(db.admin || defaultDB.admin);
+        
+        // 2. Settings
+        await firestoreDb.collection('settings').doc('global').set(db.globalSettings || defaultDB.globalSettings);
+
+        // 3. Emails
+        if (db.emails && db.emails.length > 0) {
+            const batch = firestoreDb.batch();
+            db.emails.forEach(e => {
+                const docRef = firestoreDb.collection('emails').doc(e.id);
+                const data = { ...e };
+                delete data.id;
+                batch.set(docRef, data);
+            });
+            await batch.commit();
+        }
+
+        // 4. History
+        if (db.history && db.history.length > 0) {
+            const chunks = [];
+            for (let i = 0; i < db.history.length; i += 500) {
+                chunks.push(db.history.slice(i, i + 500));
+            }
+            for (const chunk of chunks) {
+                const batch = firestoreDb.batch();
+                chunk.forEach((h, index) => {
+                    const docRef = firestoreDb.collection('history').doc();
+                    const data = { ...h };
+                    if (!data.timestamp) data.timestamp = Date.now() - (index * 1000);
+                    batch.set(docRef, data);
+                });
+                await batch.commit();
+            }
+        }
+
+        // 5. Inbox
+        if (db.inbox && db.inbox.length > 0) {
+            const chunks = [];
+            for (let i = 0; i < db.inbox.length; i += 500) {
+                chunks.push(db.inbox.slice(i, i + 500));
+            }
+            for (const chunk of chunks) {
+                const batch = firestoreDb.batch();
+                chunk.forEach(m => {
+                    const docRef = firestoreDb.collection('inbox').doc(m.id);
+                    const data = { ...m };
+                    delete data.id;
+                    batch.set(docRef, data);
+                });
+                await batch.commit();
+            }
+        }
+
+        console.log("✅ [Firebase] Migration of local data to Firestore completed successfully!");
+    } catch (err) {
+        console.error("❌ [Firebase] Migration failed:", err.message);
+    }
+}
+
+async function logToInbox(email, service, code, system) {
     const now = Date.now();
     const msg = {
         id: now.toString(),
@@ -131,8 +513,7 @@ function logToInbox(email, service, code, system) {
         message: `คุณได้ทำการขอรหัสยืนยัน OTP สำหรับแอปพลิเคชัน ${service}\nรหัส OTP ของคุณคือ: ${code}`,
         system: system
     };
-    db.inbox.unshift(msg);
-    saveDB(db);
+    await addInbox(msg);
 }
 
 // ==========================================
@@ -147,23 +528,23 @@ app.get('/', (req, res) => {
 // ==========================================
 app.get('/api/get-otp', async (req, res) => {
     const { email, service, device, systemType, pin } = req.query;
-    const db = getDB();
+    const globalSettings = await getGlobalSettings();
 
     // เช็คการปิดระบบรายแอป (Global Setting)
-    if (!db.globalSettings[service]) {
+    if (!globalSettings[service]) {
         return res.status(400).json({ success: false, error: "ระบบปิดให้บริการแอปพลิเคชันนี้ชั่วคราว" });
     }
 
+    const emails = await getEmails();
     // ค้นหาอีเมลในระบบ
-    let userEmail = db.emails.find(e => e.email === email && e.system === systemType);
+    let userEmail = emails.find(e => e.email === email && e.system === systemType);
     if (!userEmail) {
         // ถ้ายังไม่มีอีเมลในระบบ ให้เพิ่มอัตโนมัติ
         userEmail = {
             id: Date.now().toString(), email: email, system: systemType, isActive: true, pin: "",
             services: { disney: true, chatgpt: true, trueid: true, youku: true }
         };
-        db.emails.push(userEmail);
-        saveDB(db);
+        await saveEmail(userEmail);
     }
 
     // เช็คสถานะการให้บริการของอีเมลนี้
@@ -193,21 +574,23 @@ app.get('/api/get-otp', async (req, res) => {
     const dateNow = new Date().toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' });
 
     // บันทึกประวัติและกล่องข้อความ
-    db.history.unshift({ time: timeNow, dateStr: dateNow, email, device: device || 'ไม่ระบุ', service, system: systemType, otp: otpCode });
-    saveDB(db);
-    logToInbox(email, service, otpCode, systemType);
+    await addHistory({ time: timeNow, dateStr: dateNow, email, device: device || 'ไม่ระบุ', service, system: systemType, otp: otpCode });
+    await logToInbox(email, service, otpCode, systemType);
+
+    // Notify real-time listeners
+    broadcastEvent('refresh');
 
     // ดึง OTP ย้อนหลัง 10 นาที (ยกเว้นอันที่เพิ่งสร้าง)
     const tenMinMs = 10 * 60 * 1000;
     const nowMs = Date.now();
-    const freshDB = getDB();
-    const recentOtps = freshDB.inbox
+    const inbox = await getInbox();
+    const recentOtps = inbox
         .filter(m => {
             if (m.to !== email) return false;
             if (!m.subject.toLowerCase().includes(service)) return false;
-            const ts = m.timestamp ? m.timestamp : (nowMs - tenMinMs - 1); // old entries without timestamp are excluded
+            const ts = m.timestamp ? m.timestamp : (nowMs - tenMinMs - 1);
             const age = nowMs - ts;
-            return age > 1000 && age <= tenMinMs; // exclude the one just created (age > 1s)
+            return age > 1000 && age <= tenMinMs;
         })
         .slice(0, 9)
         .map(m => {
@@ -221,20 +604,21 @@ app.get('/api/get-otp', async (req, res) => {
     res.json({ success: true, code: otpCode, recentOtps });
 });
 
-app.get('/api/settings', (req, res) => {
-    const db = getDB();
-    res.json({ success: true, settings: db.globalSettings });
+app.get('/api/settings', async (req, res) => {
+    const settings = await getGlobalSettings();
+    res.json({ success: true, settings });
 });
 
-app.post('/api/admin/upload-banner', (req, res) => {
+app.post('/api/admin/upload-banner', async (req, res) => {
     const { image } = req.body;
     if (!image) return res.status(400).json({ success: false, error: 'ไม่มีข้อมูลรูปภาพ' });
     try {
         const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
         fs.writeFileSync(path.join(__dirname, 'banner.png'), base64Data, 'base64');
-        const db = getDB();
-        db.globalSettings.bannerUrl = './banner.png';
-        saveDB(db);
+        const settings = await getGlobalSettings();
+        settings.bannerUrl = './banner.png';
+        await saveGlobalSettings(settings);
+        broadcastEvent('refresh');
         res.json({ success: true, bannerUrl: './banner.png' });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -244,53 +628,71 @@ app.post('/api/admin/upload-banner', (req, res) => {
 // ==========================================
 // API แอดมินจัดการหลังบ้าน
 // ==========================================
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
     const { username, password } = req.body;
-    const db = getDB();
-    if (username === db.admin.username && password === db.admin.password) res.json({ success: true });
+    const adminConfig = await getAdminConfig();
+    if (username === adminConfig.username && password === adminConfig.password) res.json({ success: true });
     else res.json({ success: false });
 });
 
-app.get('/api/admin/data', (req, res) => { res.json(getDB()); });
+app.get('/api/admin/data', async (req, res) => {
+    const adminConfig = await getAdminConfig();
+    const globalSettings = await getGlobalSettings();
+    const emails = await getEmails();
+    const history = await getHistory();
+    const inbox = await getInbox();
 
-app.post('/api/admin/save-settings', (req, res) => {
-    const db = getDB(); db.globalSettings = req.body.settings;
-    saveDB(db); res.json({ success: true });
+    res.json({
+        admin: adminConfig,
+        globalSettings,
+        emails,
+        history,
+        inbox,
+        firebaseConnected: isFirebaseActive
+    });
 });
 
-app.post('/api/admin/update-admin', (req, res) => {
-    const db = getDB(); db.admin.username = req.body.username; db.admin.password = req.body.password;
-    saveDB(db); res.json({ success: true });
-});
-
-app.post('/api/admin/update-email', (req, res) => {
-    const db = getDB(); const idx = db.emails.findIndex(e => e.id === req.body.id);
-    if (idx !== -1) { db.emails[idx] = req.body; saveDB(db); }
+app.post('/api/admin/save-settings', async (req, res) => {
+    await saveGlobalSettings(req.body.settings);
+    broadcastEvent('refresh');
     res.json({ success: true });
 });
 
-app.post('/api/admin/add-email', (req, res) => {
-    const db = getDB();
-    const { email, system } = req.body;
-    if (!db.emails.find(e => e.email === email && e.system === system)) {
-        db.emails.push({
-            id: Date.now().toString(), email: email, system: system, isActive: true, pin: "",
+app.post('/api/admin/update-admin', async (req, res) => {
+    await saveAdminConfig(req.body.username, req.body.password);
+    broadcastEvent('refresh');
+    res.json({ success: true });
+});
+
+app.post('/api/admin/update-email', async (req, res) => {
+    await saveEmail(req.body);
+    broadcastEvent('refresh');
+    res.json({ success: true });
+});
+
+app.post('/api/admin/add-email', async (req, res) => {
+    const { email, system, password } = req.body;
+    const emails = await getEmails();
+    if (!emails.find(e => e.email === email && e.system === system)) {
+        await saveEmail({
+            id: Date.now().toString(), email: email, system: system, password: password || "", isActive: true, pin: "",
             services: { disney: true, chatgpt: true, trueid: true, youku: true }
         });
-        saveDB(db);
+        broadcastEvent('refresh');
     }
     res.json({ success: true });
 });
 
-app.post('/api/admin/delete-email', (req, res) => {
-    const db = getDB();
-    db.emails = db.emails.filter(e => e.id !== req.body.id);
-    saveDB(db); res.json({ success: true });
+app.post('/api/admin/delete-email', async (req, res) => {
+    await deleteEmail(req.body.id);
+    broadcastEvent('refresh');
+    res.json({ success: true });
 });
 
-app.post('/api/admin/delete-inbox', (req, res) => {
-    const db = getDB(); db.inbox = db.inbox.filter(m => m.id !== req.body.id);
-    saveDB(db); res.json({ success: true });
+app.post('/api/admin/delete-inbox', async (req, res) => {
+    await deleteInbox(req.body.id);
+    broadcastEvent('refresh');
+    res.json({ success: true });
 });
 
 app.get('/admin', (req, res) => {
@@ -345,8 +747,10 @@ app.get('/admin', (req, res) => {
         <!-- Sidebar Navigation -->
         <div :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
              class="fixed md:static inset-y-0 left-0 w-64 bg-white text-gray-700 flex flex-col shadow-lg border-r border-gray-200 z-50 md:z-20 transform transition-transform duration-300 ease-in-out h-full">
-            <div class="p-6 text-xl font-black text-center border-b border-gray-100 text-gray-900 flex items-center justify-center space-x-2">
-                <span><svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></span><span>Admin Panel</span>
+            <div class="p-6 text-xl font-black text-center border-b border-gray-100 text-gray-900 flex flex-col items-center justify-center space-y-2">
+                <div class="flex items-center justify-center space-x-2">
+                    <span><svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></span><span>Admin Panel</span>
+                </div>
             </div>
             <nav class="flex-1 py-4 flex flex-col space-y-1 bg-white overflow-y-auto">
                 <button @click="tab = 'dashboard'; mobileMenuOpen = false" :class="tab=='dashboard'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg><span>ภาพรวม / Dashboard</span></button>
@@ -460,10 +864,16 @@ app.get('/admin', (req, res) => {
                 <!-- กล่องเพิ่มอีเมล และ ช่องค้นหา -->
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                     <div class="col-span-1 md:col-span-3 flex flex-col sm:flex-row gap-3 bg-white p-4 rounded-xl shadow-sm border border-gray-200 sm:items-end">
-                        <div class="flex-1">
+                        <div class="flex-1 min-w-[200px]">
                             <label class="text-sm font-bold text-gray-600 block mb-1">เพิ่มอีเมล <span x-text="emailTab === 'Gmail' ? 'Gmail ใหม่' : 'Domain ใหม่'"></span></label>
                             <input type="email" x-model="newEmail" placeholder="กรอกอีเมลที่ต้องการเพิ่ม" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 transition-all font-medium text-gray-800">
                         </div>
+                        <template x-if="emailTab === 'Gmail'">
+                            <div class="flex-1 min-w-[200px]">
+                                <label class="text-sm font-bold text-gray-600 block mb-1">รหัสผ่านสำหรับแอป (App Password 16 หลัก)</label>
+                                <input type="text" x-model="newEmailPassword" placeholder="กรอกรหัสผ่าน 16 หลักจาก Google" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 transition-all font-medium text-gray-800">
+                            </div>
+                        </template>
                         <button @click="addEmail()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3.5 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center space-x-2 shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg><span>เพิ่มข้อมูล</span></button>
                     </div>
                     <div class="col-span-1 md:col-span-2 flex flex-col justify-end bg-white p-4 rounded-xl shadow-sm border border-gray-200">
@@ -502,59 +912,88 @@ app.get('/admin', (req, res) => {
                             </div>
 
                             <!-- Steps -->
-                            <div class="space-y-5">
+                            <div class="space-y-6">
 
                                 <!-- Step 1 -->
-                                <div class="flex gap-4 items-start">
+                                <div class="flex gap-4 items-start pb-4 border-b border-gray-100">
                                     <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">1</div>
                                     <div class="flex-1">
-                                        <div class="font-bold text-gray-800 mb-1">เข้าไปที่ Google Account ของคุณ</div>
-                                        <div class="text-sm text-gray-500 mb-2">เปิดบราวเซอร์แล้วไปที่ <a href="https://myaccount.google.com" target="_blank" class="text-blue-600 font-bold hover:underline">myaccount.google.com</a> เข้าสู่บัญชี Google ของคุณให้เรียบร้อย</div>
+                                        <div class="font-bold text-gray-800 mb-1">เข้าสู่ระบบ Google Account</div>
+                                        <div class="text-sm text-gray-500 mb-1">เปิดเว็บเบราว์เซอร์แล้วเข้าไปที่หน้าหลักบัญชี Google <a href="https://myaccount.google.com" target="_blank" class="text-blue-600 font-bold hover:underline">myaccount.google.com</a></div>
+                                        <div class="text-xs text-red-500 font-medium bg-red-50 p-2 rounded-lg inline-block mt-1">⚠️ ตรวจสอบให้แน่ใจว่าได้ล็อกอินบัญชี Gmail ตัวที่ถูกต้องที่คุณต้องการนำเข้าระบบ</div>
                                     </div>
                                 </div>
 
                                 <!-- Step 2 -->
-                                <div class="flex gap-4 items-start">
+                                <div class="flex gap-4 items-start pb-4 border-b border-gray-100">
                                     <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">2</div>
                                     <div class="flex-1">
-                                        <div class="font-bold text-gray-800 mb-1">เปิด “การยืนยันตัวตนแบบ 2 ขั้นตอน” (2-Step Verification)</div>
-                                        <div class="text-sm text-gray-500 mb-2">ไปที่เมนู <strong>ความปลอดภัย (Security)</strong> แล้วเปิดใช้งาน <strong>การยืนยันตัวตนแบบ 2 ขั้นตอน</strong> ถ้ายังไม่ได้เปิด</div>
-                                        <img src="/gmail_guide_step1.png" class="w-full max-w-sm rounded-xl border border-gray-200 shadow-sm mt-2" alt="Google Security Settings" onerror="this.style.display='none'">
+                                        <div class="font-bold text-gray-800 mb-1">ไปที่เมนู “ความปลอดภัย” (Security) และเช็คการยืนยันตัวตน</div>
+                                        <div class="text-sm text-gray-500 mb-2">คลิกแท็บ <strong>ความปลอดภัย (Security)</strong> ในแถบเมนู (บนคอมพิวเตอร์จะอยู่ฝั่งซ้าย, บนมือถือจะอยู่แถบด้านบน) จากนั้นเลื่อนลงมาที่หัวข้อ <strong>"วิธีการลงชื่อเข้าใช้ Google" (How you sign in to Google)</strong></div>
+                                        <div class="text-sm text-gray-500">สังเกตเมนู <strong>"การยืนยันตัวตนแบบ 2 ขั้นตอน" (2-Step Verification)</strong>:</div>
+                                        <ul class="list-disc list-inside text-xs text-gray-600 mt-1.5 space-y-1 pl-1">
+                                            <li>หากสถานะขึ้นว่า <span class="text-emerald-600 font-bold">"เปิดอยู่" (On)</span> -> <span class="font-semibold text-gray-700">สามารถข้ามไปขั้นตอนที่ 4 ได้ทันที</span></li>
+                                            <li>หากสถานะขึ้นว่า <span class="text-red-500 font-bold">"ปิดอยู่" (Off)</span> -> ให้คลิกเข้าไปเพื่อดำเนินการตั้งค่าเปิดใช้งานตามขั้นตอนที่ 3</li>
+                                        </ul>
                                     </div>
                                 </div>
 
                                 <!-- Step 3 -->
-                                <div class="flex gap-4 items-start">
+                                <div class="flex gap-4 items-start pb-4 border-b border-gray-100">
                                     <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">3</div>
                                     <div class="flex-1">
-                                        <div class="font-bold text-gray-800 mb-1">ค้นหา “รหัสผ่านสำหรับแอป” (App passwords)</div>
-                                        <div class="text-sm text-gray-500 mb-2">หลังจากเปิด 2-Step Verification แล้ว ให้เลื่อนลงมาด้านล่างแล้วคลิกที่ <strong class="text-blue-700">รหัสผ่านสำหรับแอป</strong> หรือไปที่ <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-blue-600 font-bold hover:underline">myaccount.google.com/apppasswords</a></div>
+                                        <div class="font-bold text-gray-800 mb-1">วิธีการเปิด “การยืนยันตัวตนแบบ 2 ขั้นตอน” (หากยังปิดอยู่)</div>
+                                        <div class="text-sm text-gray-500 mb-2">หลังจากคลิกเข้ามาแล้ว ให้ทำตามขั้นตอนดังนี้เพื่อเปิดใช้งาน:</div>
+                                        <ol class="list-decimal list-inside text-xs text-gray-600 space-y-1.5 pl-1 mb-3">
+                                            <li>คลิกปุ่ม <strong>"เริ่มต้นใช้งาน" (Get Started)</strong> ด้านล่าง</li>
+                                            <li>กรอกรหัสผ่านบัญชี Gmail ของคุณอีกครั้งเพื่อยืนยันตัวตน</li>
+                                            <li>กรอกหมายเลขโทรศัพท์มือถือของคุณ แล้วเลือกรับรหัสทาง <strong>"ข้อความตัวอักษร (SMS)"</strong> จากนั้นกด <strong>"ถัดไป" (Next)</strong></li>
+                                            <li>นำรหัส OTP 6 หลักที่ได้รับทาง SMS มากรอกลงบนหน้าจอเพื่อยืนยัน</li>
+                                            <li>กดปุ่ม <strong>"เปิดใช้งาน" (Turn On)</strong> เพื่อเสร็จสิ้นขั้นตอน</li>
+                                        </ol>
+                                        <img src="/gmail_guide_step1.png" class="w-full max-w-sm rounded-xl border border-gray-200 shadow-sm mt-2" alt="Google Security Settings" onerror="this.style.display='none'">
                                     </div>
                                 </div>
 
                                 <!-- Step 4 -->
-                                <div class="flex gap-4 items-start">
+                                <div class="flex gap-4 items-start pb-4 border-b border-gray-100">
                                     <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">4</div>
                                     <div class="flex-1">
-                                        <div class="font-bold text-gray-800 mb-1">สร้าง App Password ใหม่</div>
-                                        <div class="text-sm text-gray-500 mb-2">ใส่ชื่อแอปเป็น <strong>OTP System</strong> แล้วกดปุ่ม <strong>สร้าง</strong> ระบบจะสร้างรหัสผ่าน 16 หลัก ให้คัดลอกไว้ทันที</div>
-                                        <img src="/gmail_guide_step2.png" class="w-full max-w-sm rounded-xl border border-gray-200 shadow-sm mt-2" alt="App Password Creation" onerror="this.style.display='none'">
+                                        <div class="font-bold text-gray-800 mb-1">เข้าสู่หน้า “รหัสผ่านสำหรับแอป” (App passwords)</div>
+                                        <div class="text-sm text-gray-500 mb-2">เมื่อเปิดยืนยัน 2 ขั้นตอนแล้ว ให้กดลิงก์ด่วนเพื่อตรงไปยังหน้ากรอกรหัสผ่านแอปทันทีที่ <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-blue-600 font-bold hover:underline">myaccount.google.com/apppasswords</a></div>
+                                        <div class="text-xs text-gray-400">*(หรือค้นหาคำว่า “รหัสผ่านสำหรับแอป” หรือ “App Passwords” ในช่องค้นหาด้านบนของหน้าตั้งค่า Google Account ก็ได้เช่นกัน)*</div>
                                     </div>
                                 </div>
 
                                 <!-- Step 5 -->
-                                <div class="flex gap-4 items-start">
-                                    <div class="flex-shrink-0 w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-black text-sm">5</div>
+                                <div class="flex gap-4 items-start pb-4 border-b border-gray-100">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">5</div>
                                     <div class="flex-1">
-                                        <div class="font-bold text-gray-800 mb-1">ส่งข้อมูลให้ Admin</div>
-                                        <div class="text-sm text-gray-500 mb-3">แจ้ง Admin ให้ทราบโดยส่งข้อมูลดังนี้</div>
+                                        <div class="font-bold text-gray-800 mb-1">สร้างรหัสผ่านแอปสำหรับระบบ (App Password)</div>
+                                        <div class="text-sm text-gray-500 mb-2">ทำตามขั้นตอนการตั้งค่าบนหน้าจอเพื่อรับรหัสผ่าน 16 หลัก:</div>
+                                        <ol class="list-decimal list-inside text-xs text-gray-600 space-y-1.5 pl-1 mb-3">
+                                            <li>ในช่อง <strong>"ชื่อแอป" (App name)</strong> ให้พิมพ์ระบุชื่อเช่น <strong class="text-gray-800">OTP System</strong> (ตั้งชื่ออะไรก็ได้เพื่อให้คุณทราบว่ารหัสนี้สร้างขึ้นมาใช้สำหรับระบบนี้)</li>
+                                            <li>กดปุ่ม <strong>"สร้าง" (Create)</strong></li>
+                                            <li>ระบบจะแสดงป๊อปอัปที่มีรหัสผ่านจำนวน <strong>16 หลัก</strong> ในแถบช่องสีเหลืองเด่นชัด (เช่น <span class="font-mono text-amber-800 bg-amber-50 px-1 py-0.5 rounded font-bold">xxxx xxxx xxxx xxxx</span>)</li>
+                                            <li><strong class="text-red-500">⚠️ สำคัญที่สุด (ห้ามลืม!):</strong> ให้คัดลอก (Copy) หรือจดรหัสผ่าน 16 หลักนี้เก็บไว้ทันทีก่อนกดปุ่มปิดหน้าต่าง เพราะระบบความปลอดภัยของ Google จะแสดงรหัสนี้ <strong>เพียงครั้งเดียวเท่านั้น!</strong> หากปิดหน้าต่างไปแล้วจะไม่สามารถกดดูรหัสนี้ได้อีกเลย (ต้องกดลบสร้างใหม่สถานเดียว)</li>
+                                        </ol>
+                                        <img src="/gmail_guide_step2.png" class="w-full max-w-sm rounded-xl border border-gray-200 shadow-sm mt-2" alt="App Password Creation" onerror="this.style.display='none'">
+                                    </div>
+                                </div>
+
+                                <!-- Step 6 -->
+                                <div class="flex gap-4 items-start pb-4 border-b border-gray-100">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">6</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">ส่งข้อมูลให้ Admin / หรือนำข้อมูลมารวมกัน</div>
+                                        <div class="text-sm text-gray-500 mb-3">เมื่อคัดลอกรหัสผ่าน 16 หลักสำเร็จแล้ว จะได้ข้อมูล 2 ส่วนหลักๆ คือ:</div>
                                         <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2.5">
                                             <div class="flex items-center gap-3">
                                                 <div class="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
                                                     <svg class="w-3.5 h-3.5 text-red-500" viewBox="0 0 24 24" fill="currentColor"><path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z"/><path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z"/></svg>
                                                 </div>
                                                 <div>
-                                                    <div class="text-xs text-gray-400 font-bold">Gmail Address</div>
+                                                    <div class="text-xs text-gray-400 font-bold">Gmail Address (บัญชีอีเมล)</div>
                                                     <div class="text-sm font-bold text-gray-800">yourname@gmail.com</div>
                                                 </div>
                                             </div>
@@ -563,9 +1002,32 @@ app.get('/admin', (req, res) => {
                                                     <svg class="w-3.5 h-3.5 text-yellow-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
                                                 </div>
                                                 <div>
-                                                    <div class="text-xs text-gray-400 font-bold">App Password (16 หลัก)</div>
+                                                    <div class="text-xs text-gray-400 font-bold">App Password (รหัสผ่านสำหรับแอป 16 หลัก)</div>
                                                     <div class="text-sm font-bold text-yellow-700 tracking-widest font-mono">xxxx xxxx xxxx xxxx</div>
                                                 </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+ 
+                                <!-- Step 7 -->
+                                <div class="flex gap-4 items-start">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-black text-sm">7</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">นำอีเมลเข้าระบบโดยแอดมิน (Admin Register)</div>
+                                        <div class="text-sm text-gray-500 mb-3">เมื่อได้ข้อมูลทั้ง 2 ส่วนแล้ว แอดมินสามารถนำมาเพิ่มเข้าระบบเพื่อให้พร้อมใช้งานได้ตามขั้นตอนดังนี้:</div>
+                                        <ol class="list-decimal list-inside text-xs text-gray-600 space-y-2 pl-1 mb-3">
+                                            <li>ในเมนูแถบซ้าย เลือกหัวข้อ <strong class="text-gray-800">"จัดการอีเมลทั้งหมด" (Manage Emails)</strong></li>
+                                            <li>เลือกแท็บระบบย่อยเป็น <strong class="text-red-500">"อีเมลจาก Gmail"</strong></li>
+                                            <li>กรอกช่อง <strong class="text-gray-800">"เพิ่มอีเมล Gmail ใหม่"</strong> ด้วยที่อยู่อีเมล Gmail ของลูกค้า</li>
+                                            <li>กรอกช่อง <strong class="text-gray-800">"รหัสผ่านสำหรับแอป"</strong> ด้วยรหัสผ่านแอป 16 หลักที่สร้างไว้ (ใส่เว้นวรรคหรือไม่ใส่ก็ได้ ระบบจะเคลียร์เว้นวรรคให้อัตโนมัติ)</li>
+                                            <li>คลิกปุ่ม <span class="bg-emerald-600 text-white px-2 py-0.5 rounded font-bold">เพิ่มข้อมูล</span> เพื่อนำข้อมูลลงทะเบียนเข้าสู่ระบบ</li>
+                                            <li>รายการอีเมลจะขึ้นโชว์ในตาราง แอดมินสามารถกดปุ่ม <span class="bg-gray-800 text-white px-2 py-0.5 rounded font-bold text-xs">บันทึก</span> รหัสผ่านแอปหรือแก้ไขได้ตลอดเวลา และควบคุมบริการแยกย่อย (Disney, GPT, ฯลฯ) รวมถึงเปิด/ปิดการให้บริการของอีเมลนั้นๆ ได้อิสระ</li>
+                                        </ol>
+                                        <div class="text-xs text-blue-600 bg-blue-50 border border-blue-100 p-3 rounded-xl mt-1 flex items-start gap-2">
+                                            <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            <div>
+                                                <strong>พร้อมใช้งานทันที:</strong> เมื่อดำเนินการเสร็จสิ้น ระบบหลังบ้านจะเชื่อมต่อไปยังเซิร์ฟเวอร์ IMAP ของ Google ด้วยรหัสผ่านแอปนี้เพื่อค้นหาและนำส่งรหัส OTP ให้ผู้ใช้ทางหน้าบ้านแบบเรียลไทม์โดยสมบูรณ์
                                             </div>
                                         </div>
                                     </div>
@@ -586,55 +1048,67 @@ app.get('/admin', (req, res) => {
                 <!-- แสดงผลตาราง (Desktop) หรือการ์ด (Mobile) -->
                 <!-- ตารางอีเมล (Desktop - lg ขึ้นไป) -->
                 <div class="hidden lg:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
-                    <table class="w-full text-left min-w-[900px]">
+                    <table class="w-full text-left">
                         <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
                             <tr>
-                                <th class="p-5 font-bold text-sm">บัญชีอีเมล</th>
-                                <th class="p-5 font-bold text-sm text-center">สถานะบริการ</th>
-                                <th class="p-5 font-bold text-sm text-center">จัดการบริการ</th>
-                                <th class="p-5 font-bold text-sm text-center">รหัส PIN ความปลอดภัย</th>
-                                <th class="p-5 font-bold text-sm text-center">จัดการลบ</th>
+                                <th class="p-3 font-bold text-sm">บัญชีอีเมล</th>
+                                <template x-if="emailTab === 'Gmail'">
+                                    <th class="p-3 font-bold text-sm text-center">รหัสผ่านสำหรับแอป (16 หลัก)</th>
+                                </template>
+                                <th class="p-3 font-bold text-sm text-center">สถานะบริการ</th>
+                                <th class="p-3 font-bold text-sm text-center">จัดการบริการ</th>
+                                <th class="p-3 font-bold text-sm text-center">รหัส PIN ความปลอดภัย</th>
+                                <th class="p-3 font-bold text-sm text-center">จัดการลบ</th>
                             </tr>
                         </thead>
                         <tbody>
                             <template x-for="e in paginatedEmails" :key="e.id">
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                    <td class="p-5 font-bold text-gray-800 text-lg" x-text="e.email"></td>
+                                    <td class="p-3 font-bold text-gray-800 text-sm break-all" x-text="e.email"></td>
                                     
-                                    <td class="p-5 text-center">
+                                    <template x-if="emailTab === 'Gmail'">
+                                        <td class="p-3">
+                                            <div class="flex justify-center items-center space-x-1.5">
+                                                <input type="text" x-model="e.password" placeholder="ไม่มีรหัสผ่านแอป" class="border border-gray-300 rounded-lg p-2 w-32 text-center font-mono font-bold text-xs outline-none focus:border-blue-500 bg-white">
+                                                <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-2.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0">บันทึก</button>
+                                            </div>
+                                        </td>
+                                    </template>
+
+                                    <td class="p-3 text-center">
                                         <button @click="e.isActive = !e.isActive; saveEmail(e)" 
                                                 :class="e.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'" 
-                                                class="px-4 py-2 rounded-full text-xs font-bold shadow-sm transition-all hover:scale-105 flex items-center mx-auto space-x-1">
+                                                class="px-3 py-1.5 rounded-full text-xs font-bold shadow-sm transition-all hover:scale-105 flex items-center mx-auto space-x-1">
                                                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
                                                 <span x-text="e.isActive ? 'เปิดให้บริการ' : 'ปิดให้บริการ'"></span>
                                         </button>
                                     </td>
                                     
-                                    <td class="p-5">
-                                        <div class="flex justify-center gap-2">
-                                            <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-blue-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all">Disney</button>
-                                            <button @click="e.services.chatgpt = !e.services.chatgpt; saveEmail(e)" :class="e.services.chatgpt?'bg-emerald-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all">GPT</button>
-                                            <button @click="e.services.trueid = !e.services.trueid; saveEmail(e)" :class="e.services.trueid?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all">TrueID</button>
-                                            <button @click="e.services.youku = !e.services.youku; saveEmail(e)" :class="e.services.youku?'bg-sky-500 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all">Youku</button>
+                                    <td class="p-3">
+                                        <div class="flex justify-center gap-1.5">
+                                            <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-blue-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">Disney</button>
+                                            <button @click="e.services.chatgpt = !e.services.chatgpt; saveEmail(e)" :class="e.services.chatgpt?'bg-emerald-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">GPT</button>
+                                            <button @click="e.services.trueid = !e.services.trueid; saveEmail(e)" :class="e.services.trueid?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">TrueID</button>
+                                            <button @click="e.services.youku = !e.services.youku; saveEmail(e)" :class="e.services.youku?'bg-sky-500 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">Youku</button>
                                         </div>
                                     </td>
                                     
-                                    <td class="p-5">
-                                        <div class="flex justify-center items-center space-x-2">
-                                            <input type="text" x-model="e.pin" maxlength="6" placeholder="ไม่ตั้ง PIN" class="border border-gray-300 rounded-lg p-2 w-28 text-center font-bold tracking-widest text-sm outline-none focus:border-blue-500 bg-white">
-                                            <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-3 py-2 rounded-lg text-xs font-bold transition-all">บันทึก</button>
+                                    <td class="p-3">
+                                        <div class="flex justify-center items-center space-x-1.5">
+                                            <input type="text" x-model="e.pin" maxlength="6" placeholder="ไม่ตั้ง PIN" class="border border-gray-300 rounded-lg p-2 w-20 text-center font-bold tracking-widest text-xs outline-none focus:border-blue-500 bg-white">
+                                            <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-2.5 py-2 rounded-lg text-xs font-bold transition-all">บันทึก</button>
                                         </div>
                                     </td>
                                     
-                                    <td class="p-5 text-center">
-                                        <button @click="deleteEmail(e.id)" class="text-red-500 hover:text-red-700 p-2 rounded-lg transition-all mx-auto block">
-                                            <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                                    <td class="p-3 text-center">
+                                        <button @click="deleteEmail(e.id)" class="text-red-500 hover:text-red-700 p-1.5 rounded-lg transition-all mx-auto block">
+                                            <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                                         </button>
                                     </td>
                                 </tr>
                             </template>
                             <tr x-show="paginatedEmails.length === 0">
-                                <td colspan="5" class="p-8 text-center text-gray-400 font-bold">ยังไม่มีรายชื่ออีเมลในระบบนี้</td>
+                                <td :colspan="emailTab === 'Gmail' ? 6 : 5" class="p-8 text-center text-gray-400 font-bold">ยังไม่มีรายชื่ออีเมลในระบบนี้</td>
                             </tr>
                         </tbody>
                     </table>
@@ -671,6 +1145,16 @@ app.get('/admin', (req, res) => {
                                 </div>
                             </div>
 
+                            <template x-if="e.system === 'Gmail'">
+                                <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
+                                    <span class="text-sm font-bold text-gray-500">รหัสผ่านสำหรับแอป (16 หลัก)</span>
+                                    <div class="flex items-center space-x-2">
+                                        <input type="text" x-model="e.password" placeholder="ไม่มีรหัสผ่านแอป" class="border border-gray-300 rounded-lg p-2.5 flex-1 text-center font-mono font-bold text-xs outline-none focus:border-blue-500 bg-white">
+                                        <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-3 py-2.5 rounded-lg text-xs font-bold transition-all shrink-0">บันทึก</button>
+                                    </div>
+                                </div>
+                            </template>
+
                             <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
                                 <span class="text-sm font-bold text-gray-500">รหัส PIN ความปลอดภัย</span>
                                 <div class="flex items-center space-x-2">
@@ -684,7 +1168,7 @@ app.get('/admin', (req, res) => {
                 </div>
 
                 <!-- Pagination for Emails -->
-                <div x-show="totalEmailPages > 1" class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
+                <div x-show="filteredEmails.length > 0" class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
                     <div class="text-xs font-bold text-gray-500">
                         แสดงหน้า <span x-text="emailPage"></span> จาก <span x-text="totalEmailPages"></span> (ทั้งหมด <span x-text="filteredEmails.length"></span> รายการ)
                     </div>
@@ -915,6 +1399,54 @@ app.get('/admin', (req, res) => {
                     </div>
                 </div>
 
+                <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 mb-8">
+                    <h2 class="text-xl font-bold mb-6 text-gray-800">ตั้งค่าลิงก์นำทางเพิ่มเติม</h2>
+                    <div class="space-y-4 max-w-md">
+                        <div>
+                            <label class="text-sm font-bold text-gray-600 block mb-1">ลิงก์ "ติดต่อเรา"</label>
+                            <input type="text" x-model="db.globalSettings.contactUrl" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800" placeholder="https://lin.ee/...">
+                        </div>
+                        <div>
+                            <label class="text-sm font-bold text-gray-600 block mb-1">ลิงก์ "วิธีใช้งาน"</label>
+                            <input type="text" x-model="db.globalSettings.guideUrl" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800" placeholder="https://drive.google.com/...">
+                        </div>
+                        <div class="pt-2">
+                            <button @click="saveSettings(); alert('บันทึกลิงก์นำทางสำเร็จเรียบร้อย!')" class="bg-gray-800 hover:bg-black text-white font-bold py-3.5 rounded-xl shadow-md active:scale-95 transition-all w-full text-center">บันทึกข้อมูลลิงก์</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 mb-8">
+                    <h2 class="text-xl font-bold mb-6 text-gray-800">ตั้งค่าเซิร์ฟเวอร์โดเมนหลัก (Maily.space / Domain)</h2>
+                    <div class="space-y-4 max-w-md">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-sm font-bold text-gray-600 block mb-1">IMAP Host</label>
+                                <input type="text" x-model="db.globalSettings.mailyHost" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800" placeholder="mail.maily.space">
+                            </div>
+                            <div>
+                                <label class="text-sm font-bold text-gray-600 block mb-1">IMAP Port</label>
+                                <input type="number" x-model.number="db.globalSettings.mailyPort" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800" placeholder="993">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-sm font-bold text-gray-600 block mb-1">Username / บัญชีอีเมลหลัก</label>
+                            <input type="text" x-model="db.globalSettings.mailyUser" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800" placeholder="aisstream">
+                        </div>
+                        <div>
+                            <label class="text-sm font-bold text-gray-600 block mb-1">Password / รหัสผ่าน</label>
+                            <input type="text" x-model="db.globalSettings.mailyPass" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800" placeholder="ใส่รหัสผ่านหลักที่นี่">
+                        </div>
+                        <div class="flex items-center space-x-2 py-1">
+                            <input type="checkbox" id="mailyTls" x-model="db.globalSettings.mailyTls" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <label for="mailyTls" class="text-sm font-bold text-gray-600">เปิดใช้งานการเชื่อมต่อแบบปลอดภัย (TLS/SSL)</label>
+                        </div>
+                        <div class="pt-2">
+                            <button @click="saveSettings(); alert('บันทึกการตั้งค่าโดเมนหลักสำเร็จเรียบร้อย!')" class="bg-gray-800 hover:bg-black text-white font-bold py-3.5 rounded-xl shadow-md active:scale-95 transition-all w-full text-center">บันทึกข้อมูลเซิร์ฟเวอร์</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 relative overflow-hidden">
                     <h2 class="text-xl font-bold mb-6 text-gray-800">ตั้งค่าผู้ดูแลระบบ</h2>
                     
@@ -928,7 +1460,7 @@ app.get('/admin', (req, res) => {
                             <input type="text" x-model="newAdminPass" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-gray-800">
                         </div>
                         <div class="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-                            <button @click="updateAdmin" class="bg-gray-800 hover:bg-black text-white font-bold py-3 px-8 rounded-xl shadow-md active:scale-95 transition-all">บันทึกการเปลี่ยนแปลงข้อมูล</button>
+                            <button @click="updateAdmin" class="bg-gray-800 hover:bg-black text-white font-bold py-3.5 rounded-xl shadow-md active:scale-95 transition-all w-full text-center">บันทึกการเปลี่ยนแปลงข้อมูล</button>
                             <span x-show="adminSaved" class="text-emerald-600 font-bold bg-emerald-50 px-3 py-1 rounded-lg text-center">บันทึกสำเร็จแล้ว!</span>
                         </div>
                     </div>
@@ -942,7 +1474,7 @@ app.get('/admin', (req, res) => {
         document.addEventListener('alpine:init', () => {
             Alpine.data('adminApp', () => ({
                 isLoggedIn: false, loginUser: '', loginPass: '', loginError: false,
-                tab: 'dashboard', emailTab: 'Gmail', searchEmail: '', searchInbox: '', searchHistory: '', newEmail: '',
+                tab: 'dashboard', emailTab: 'Gmail', searchEmail: '', searchInbox: '', searchHistory: '', newEmail: '', newEmailPassword: '',
                 db: { emails: [], history: [], inbox: [], globalSettings: {} },
                 newAdminUser: '', newAdminPass: '', adminSaved: false, mobileMenuOpen: false,
                 inboxPage: 1, inboxPerPage: 10,
@@ -950,6 +1482,14 @@ app.get('/admin', (req, res) => {
                 emailPage: 1, emailPerPage: 10,
                 bannerFileName: 'ยังไม่ได้เลือกไฟล์', bannerImageData: '', showGmailGuide: false,
 
+                init() {
+                    const eventSource = new EventSource('/api/events');
+                    eventSource.onmessage = (event) => {
+                        if (event.data === 'refresh' && this.isLoggedIn) {
+                            this.loadData();
+                        }
+                    };
+                },
                 async login() {
                     const res = await fetch('/api/admin/login', {
                         method:'POST', headers:{'Content-Type':'application/json'},
@@ -963,6 +1503,13 @@ app.get('/admin', (req, res) => {
                 async loadData() {
                     const res = await fetch('/api/admin/data');
                     this.db = await res.json();
+                    if (!this.db.globalSettings.contactUrl) this.db.globalSettings.contactUrl = "https://lin.ee/tNXgZoM";
+                    if (!this.db.globalSettings.guideUrl) this.db.globalSettings.guideUrl = "https://drive.google.com/drive/folders/1S0FGZFR58UJDFgG2FxLC1HdhGlQmM5h_";
+                    if (!this.db.globalSettings.mailyHost) this.db.globalSettings.mailyHost = "mail.maily.space";
+                    if (this.db.globalSettings.mailyPort === undefined) this.db.globalSettings.mailyPort = 993;
+                    if (!this.db.globalSettings.mailyUser) this.db.globalSettings.mailyUser = "aisstream";
+                    if (this.db.globalSettings.mailyPass === undefined) this.db.globalSettings.mailyPass = "";
+                    if (this.db.globalSettings.mailyTls === undefined) this.db.globalSettings.mailyTls = true;
                     this.newAdminUser = this.db.admin.username;
                     this.newAdminPass = this.db.admin.password;
                 },
@@ -1054,8 +1601,16 @@ app.get('/admin', (req, res) => {
                 },
                 async addEmail() {
                     if (!this.newEmail) return;
-                    await fetch('/api/admin/add-email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: this.newEmail.trim(), system: this.emailTab }) });
-                    this.newEmail = ''; this.loadData();
+                    await fetch('/api/admin/add-email', { 
+                        method:'POST', 
+                        headers:{'Content-Type':'application/json'}, 
+                        body: JSON.stringify({ 
+                            email: this.newEmail.trim(), 
+                            system: this.emailTab, 
+                            password: this.newEmailPassword.trim() 
+                        }) 
+                    });
+                    this.newEmail = ''; this.newEmailPassword = ''; this.loadData();
                 },
                 async deleteEmail(id) {
                     if (!confirm('ยืนยันการลบอีเมลนี้ออกจากระบบใช่หรือไม่?')) return;
