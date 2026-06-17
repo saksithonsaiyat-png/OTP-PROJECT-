@@ -7,7 +7,7 @@ const simpleParser = require('mailparser').simpleParser;
 const admin = require('firebase-admin');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // ========================================================
 // ⚙️ ตั้งค่าบัญชีอีเมลหลักของร้าน (Maily.space) - ลิงก์เชื่อมโยงกับฐานข้อมูล
@@ -76,8 +76,8 @@ async function getRealOTP(service, targetEmail) {
         const globalSettings = await getGlobalSettings();
         const dbMailyPass = globalSettings.mailyPass || '';
         if (dbMailyPass === '' || dbMailyPass === 'YOUR_PASSWORD') {
-            console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ Central IMAP Password is not configured. Falling back to Mock OTP.`);
-            return null;
+            console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ Central IMAP Password is not configured.`);
+            throw new Error('กรุณาตั้งค่ารหัสผ่านเซิร์ฟเวอร์โดเมนหลัก (Maily Space) ในระบบหลังบ้านก่อนใช้งาน');
         }
         activeConfig = {
             imap: {
@@ -443,7 +443,7 @@ async function migrateLocalToFirestore() {
 
         // 1. Admin
         await firestoreDb.collection('settings').doc('admin').set(db.admin || defaultDB.admin);
-        
+
         // 2. Settings
         await firestoreDb.collection('settings').doc('global').set(db.globalSettings || defaultDB.globalSettings);
 
@@ -563,8 +563,7 @@ app.get('/api/get-otp', async (req, res) => {
         if (realOtp) {
             otpCode = realOtp;
         } else {
-            // Fallback to mock/random OTP
-            otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+            return res.status(400).json({ success: false, error: "ไม่พบรหัส OTP ในกล่องข้อความ" });
         }
     } catch (err) {
         return res.status(400).json({ success: false, error: err.message });
@@ -706,6 +705,7 @@ app.get('/admin', (req, res) => {
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <link href="https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@latest/fonts/LINESeedSansTH/LINESeedSansTH.css" rel="stylesheet" />
     <style>
+        html { font-size: 108%; }
         body { font-family: 'LINE Seed Sans TH', sans-serif; background-color: #f3f4f6; }
         .tab-btn.active { background-color: #e5e7eb; color: #111827; font-weight: 700; border-left: 4px solid #3b82f6; }
     </style>
@@ -870,7 +870,7 @@ app.get('/admin', (req, res) => {
                         </div>
                         <template x-if="emailTab === 'Gmail'">
                             <div class="flex-1 min-w-[200px]">
-                                <label class="text-sm font-bold text-gray-600 block mb-1">รหัสผ่านสำหรับแอป (App Password 16 หลัก)</label>
+                                <label class="text-sm font-bold text-gray-600 block mb-1">รหัสผ่านสำหรับแอป</label>
                                 <input type="text" x-model="newEmailPassword" placeholder="กรอกรหัสผ่าน 16 หลักจาก Google" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 transition-all font-medium text-gray-800">
                             </div>
                         </template>
@@ -1053,7 +1053,7 @@ app.get('/admin', (req, res) => {
                             <tr>
                                 <th class="p-3 font-bold text-sm">บัญชีอีเมล</th>
                                 <template x-if="emailTab === 'Gmail'">
-                                    <th class="p-3 font-bold text-sm text-center">รหัสผ่านสำหรับแอป (16 หลัก)</th>
+                                    <th class="p-3 font-bold text-sm text-center">รหัสผ่านสำหรับแอป</th>
                                 </template>
                                 <th class="p-3 font-bold text-sm text-center">สถานะบริการ</th>
                                 <th class="p-3 font-bold text-sm text-center">จัดการบริการ</th>
@@ -1147,7 +1147,7 @@ app.get('/admin', (req, res) => {
 
                             <template x-if="e.system === 'Gmail'">
                                 <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
-                                    <span class="text-sm font-bold text-gray-500">รหัสผ่านสำหรับแอป (16 หลัก)</span>
+                                    <span class="text-sm font-bold text-gray-500">รหัสผ่านสำหรับแอป</span>
                                     <div class="flex items-center space-x-2">
                                         <input type="text" x-model="e.password" placeholder="ไม่มีรหัสผ่านแอป" class="border border-gray-300 rounded-lg p-2.5 flex-1 text-center font-mono font-bold text-xs outline-none focus:border-blue-500 bg-white">
                                         <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-3 py-2.5 rounded-lg text-xs font-bold transition-all shrink-0">บันทึก</button>
@@ -1193,7 +1193,7 @@ app.get('/admin', (req, res) => {
                 <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-17.5 0V6.75A2.25 2.25 0 016.375 4.5h11.25a2.25 2.25 0 012.25 2.25v6.75m-17.625 0h-.375a2.25 2.25 0 00-2.25 2.25v1.5a2.25 2.25 0 002.25 2.25h19.5a2.25 2.25 0 002.25-2.25v-1.5a2.25 2.25 0 00-2.25-2.25h-.375" /></svg><span>กล่องจดหมาย (รวมทั้งหมด)</span></h1>
                 
                 <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-200 mb-4">
-                    <input type="text" x-model="searchInbox" @input="inboxPage = 1" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-2.5 rounded-lg outline-none font-medium text-gray-700">
+                    <input type="text" x-model="searchInbox" @input="inboxPage = 1" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-lg outline-none font-medium text-gray-700 text-base">
                 </div>
  
                 <div class="space-y-4">
@@ -1201,21 +1201,21 @@ app.get('/admin', (req, res) => {
                         <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-200 flex flex-col relative hover:shadow-md transition-shadow">
                             <div class="flex items-start justify-between mb-1.5">
                                 <div class="text-sm flex-1 min-w-0 pr-2">
-                                    <div class="font-bold text-gray-800 break-all text-xs leading-5"><span class="text-blue-500 font-bold">ผู้ส่ง:</span> <span x-text="msg.from"></span></div>
-                                    <div class="font-bold text-gray-800 break-all text-xs leading-5"><span class="text-red-500 font-bold">ผู้รับ:</span> <span x-text="msg.to"></span></div>
+                                    <div class="font-bold text-gray-800 truncate text-sm leading-6" :title="msg.from"><span class="text-blue-500 font-bold">ผู้ส่ง:</span> <span x-text="msg.from"></span></div>
+                                    <div class="font-bold text-gray-800 truncate text-sm leading-6" :title="msg.to"><span class="text-red-500 font-bold">ผู้รับ:</span> <span x-text="msg.to"></span></div>
                                 </div>
                                 <div class="flex items-center gap-1.5 flex-shrink-0">
-                                    <div class="text-xs text-gray-500 font-bold bg-gray-100 px-2 py-1 rounded-lg flex items-center">
-                                        <svg class="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                        <span x-text="msg.time" class="text-[10px]"></span>
+                                    <div class="text-sm text-gray-500 font-bold bg-gray-100 px-2.5 py-1.5 rounded-lg flex items-center">
+                                        <svg class="w-3.5 h-3.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        <span x-text="msg.time" class="text-xs"></span>
                                     </div>
                                     <button @click="deleteInbox(msg.id)" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-all" title="ลบข้อความนี้">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                                     </button>
                                 </div>
                             </div>
-                            <div class="text-xs font-bold text-gray-500 mb-1.5 border-t pt-1.5" x-text="'หัวข้อ: ' + msg.subject"></div>
-                            <div class="text-gray-600 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100 font-medium text-xs whitespace-pre-wrap break-all max-h-20 overflow-y-auto" x-text="msg.message"></div>
+                            <div class="text-sm font-bold text-gray-500 mb-1.5 border-t pt-1.5" x-text="'หัวข้อ: ' + msg.subject"></div>
+                            <div class="text-gray-600 bg-blue-50/50 p-3 rounded-lg border border-blue-100 font-medium text-sm whitespace-pre-wrap break-all max-h-24 overflow-y-auto" x-text="msg.message"></div>
                         </div>
                     </template>
                     <div x-show="filteredInbox.length === 0" class="text-center text-gray-400 py-10 font-bold bg-white rounded-2xl border border-gray-200 border-dashed">ไม่พบข้อความอีเมล</div>
@@ -1247,7 +1247,7 @@ app.get('/admin', (req, res) => {
                 <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>ประวัติการทำรายการ / ค้นหา OTP</span></h1>
                 
                 <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-200 mb-4">
-                    <input type="text" x-model="searchHistory" @input="historyPage = 1" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-2.5 rounded-lg outline-none font-medium text-gray-700">
+                    <input type="text" x-model="searchHistory" @input="historyPage = 1" placeholder="กรอกอีเมลที่ต้องการค้นหา" class="w-full p-3 rounded-lg outline-none font-medium text-gray-700 text-base">
                 </div>
  
                 <!-- ตารางประวัติ (Desktop) -->
@@ -1262,21 +1262,21 @@ app.get('/admin', (req, res) => {
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
                             <tr>
-                                <th class="p-3 font-bold text-xs">วันที่ / เวลา</th>
-                                <th class="p-3 font-bold text-xs">บัญชีอีเมล</th>
-                                <th class="p-3 font-bold text-xs">ชื่ออุปกรณ์</th>
-                                <th class="p-3 font-bold text-xs text-center">บริการ</th>
-                                <th class="p-3 font-bold text-xs text-center">รหัสที่แสดง</th>
+                                <th class="p-3.5 font-bold text-sm">วันที่ / เวลา</th>
+                                <th class="p-3.5 font-bold text-sm">บัญชีอีเมล</th>
+                                <th class="p-3.5 font-bold text-sm">ชื่ออุปกรณ์</th>
+                                <th class="p-3.5 font-bold text-sm text-center">บริการ</th>
+                                <th class="p-3.5 font-bold text-sm text-center">รหัสที่แสดง</th>
                             </tr>
                         </thead>
                         <tbody>
                             <template x-for="h in paginatedHistory">
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                    <td class="p-3 text-xs font-medium text-gray-500 whitespace-nowrap overflow-hidden" x-text="h.time"></td>
-                                    <td class="p-3 font-bold text-gray-800 text-sm overflow-hidden"><div class="truncate" x-text="h.email" :title="h.email"></div></td>
-                                    <td class="p-3 font-bold text-gray-700 text-sm overflow-hidden"><div class="truncate" x-text="h.device" :title="h.device"></div></td>
-                                    <td class="p-3 font-bold text-gray-700 text-xs text-center capitalize" x-text="h.service"></td>
-                                    <td class="p-3 font-black tracking-widest text-lg text-emerald-600 text-center" x-text="h.otp"></td>
+                                    <td class="p-3 text-sm font-medium text-gray-500 whitespace-nowrap overflow-hidden" x-text="h.time"></td>
+                                    <td class="p-3 font-bold text-gray-800 text-base overflow-hidden"><div class="truncate" x-text="h.email" :title="h.email"></div></td>
+                                    <td class="p-3 font-bold text-gray-700 text-base overflow-hidden"><div class="truncate" x-text="h.device" :title="h.device"></div></td>
+                                    <td class="p-3 font-bold text-gray-700 text-sm text-center capitalize" x-text="h.service"></td>
+                                    <td class="p-3 font-black tracking-widest text-xl text-emerald-600 text-center" x-text="h.otp"></td>
                                 </tr>
                             </template>
                             <tr x-show="filteredHistory.length === 0">
@@ -1290,17 +1290,17 @@ app.get('/admin', (req, res) => {
                 <div class="md:hidden grid grid-cols-1 gap-3">
                     <template x-for="h in paginatedHistory">
                         <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col space-y-2">
-                            <div class="flex justify-between items-center text-xs text-gray-500">
+                            <div class="flex justify-between items-center text-sm text-gray-500">
                                 <span x-text="h.time" class="font-medium"></span>
-                                <span class="font-bold uppercase px-2 py-0.5 bg-gray-100 rounded text-gray-700 text-[10px]" x-text="h.service"></span>
+                                <span class="font-bold uppercase px-2 py-0.5 bg-gray-100 rounded text-gray-700 text-xs" x-text="h.service"></span>
                             </div>
                             <div class="border-t border-gray-50 pt-2 flex flex-col space-y-1">
-                                <div class="text-sm font-bold text-gray-800 break-all"><span class="text-gray-400 font-normal text-xs inline-block w-14">อีเมล:</span> <span x-text="h.email"></span></div>
-                                <div class="text-sm font-bold text-gray-700 break-all"><span class="text-gray-400 font-normal text-xs inline-block w-14">อุปกรณ์:</span> <span x-text="h.device"></span></div>
+                                <div class="text-base font-bold text-gray-800 break-all"><span class="text-gray-400 font-normal text-sm inline-block w-16">อีเมล:</span> <span x-text="h.email"></span></div>
+                                <div class="text-base font-bold text-gray-700 break-all"><span class="text-gray-400 font-normal text-sm inline-block w-16">อุปกรณ์:</span> <span x-text="h.device"></span></div>
                             </div>
                             <div class="border-t border-gray-50 pt-2 flex justify-between items-center">
-                                <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">รหัสที่ดึงได้:</span>
-                                <span class="text-2xl font-black tracking-widest text-emerald-600" x-text="h.otp"></span>
+                                <span class="text-sm font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded">รหัสที่ดึงได้:</span>
+                                <span class="text-3xl font-black tracking-widest text-emerald-600" x-text="h.otp"></span>
                             </div>
                         </div>
                     </template>
