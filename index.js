@@ -1,9 +1,9 @@
  (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
 diff --git a/index.js b/index.js
-index b1b8f9cd2dec2898439bcfb2599533c2ba75f0bf..91f980ebec731b3cf52d46a9ed8decb683c4c6d6 100644
+index b1b8f9cd2dec2898439bcfb2599533c2ba75f0bf..38f247fd867e2bf6dcf4c23f130db1016c113307 100644
 --- a/index.js
 +++ b/index.js
-@@ -1,35 +1,35 @@
+@@ -1,35 +1,36 @@
  const express = require('express');
  const cors = require('cors'); // นำเข้าไลบรารี CORS เพื่อแก้ปัญหาบล็อกโดเมน
  const path = require('path');
@@ -14,7 +14,8 @@ index b1b8f9cd2dec2898439bcfb2599533c2ba75f0bf..91f980ebec731b3cf52d46a9ed8decb6
  
  const app = express();
 -const port = process.env.PORT || 3000;
-+const port = process.env.APP_PORT || 3000;
++const port = Number(process.env.PORT || process.env.APP_PORT || 3000);
++const host = process.env.HOST || '0.0.0.0';
  
  // ========================================================
  // ⚙️ ตั้งค่าบัญชีอีเมลหลักของร้าน (Maily.space) - ลิงก์เชื่อมโยงกับฐานข้อมูล
@@ -40,6 +41,42 @@ index b1b8f9cd2dec2898439bcfb2599533c2ba75f0bf..91f980ebec731b3cf52d46a9ed8decb6
              migrateLocalToFirestore();
          }, 1000);
      } else {
+@@ -1657,32 +1658,32 @@ app.get('/admin', (req, res) => {
+                     let start = Math.max(1, current - 2);
+                     let end = Math.min(total, start + maxVisible - 1);
+                     if (end - start + 1 < maxVisible) {
+                         start = Math.max(1, end - maxVisible + 1);
+                     }
+                     for (let i = start; i <= end; i++) {
+                         pages.push(i);
+                     }
+                     return pages;
+                 },
+ 
+                 async saveSettings() {
+                     await fetch('/api/admin/save-settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({settings: this.db.globalSettings}) });
+                 },
+                 async updateAdmin() {
+                     await fetch('/api/admin/update-admin', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username: this.newAdminUser, password: this.newAdminPass}) });
+                     this.adminSaved = true; setTimeout(()=>this.adminSaved=false, 3000);
+                 }
+             }))
+         })
+     </script>
+ </body>
+ </html>`);
+ });
+ 
+-app.listen(port, () => {
++app.listen(port, host, () => {
+     console.log(`===========================================`);
+-    console.log(`🚀 Server และ Admin Panel เปิดทำงานแล้วที่พอร์ต ${port}!`);
++    console.log(`🚀 Server และ Admin Panel เปิดทำงานแล้วที่ ${host}:${port}!`);
+     console.log(`🌐 เข้าหน้าลูกค้าที่: http://localhost:${port}/`);
+     console.log(`⚙️ เข้าหน้าแอดมินที่: http://localhost:${port}/admin`);
+     console.log(`===========================================`);
+ });
+\ No newline at end of file
  
 EOF
 )
