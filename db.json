@@ -5,16 +5,16 @@
   },
   "globalSettings": {
     "disney": true,
-    "chatgpt": false,
+    "chatgpt": true,
     "trueid": true,
-    "youku": false,
+    "youku": true,
     "bannerUrl": "./banner.png",
     "contactUrl": "https://google.com",
     "guideUrl": "https://youtube.com",
     "mailyHost": "mail.maily.space",
     "mailyPort": 993,
     "mailyUser": "aisstream",
-    "mailyPass": "testpassword123",
+    "mailyPass": "sk_v1_hl0ntew2bg3p2sqpmj5iknaqgibpyeva",
     "mailyTls": true
   },
   "emails": [
@@ -23,13 +23,14 @@
       "email": "saksithonsaiyat@gmail.com",
       "system": "Gmail",
       "isActive": true,
-      "pin": "1234",
+      "pin": "121234",
       "services": {
         "disney": true,
         "chatgpt": true,
         "trueid": true,
         "youku": true
-      }
+      },
+      "password": "abcdefghijklmnop"
     },
     {
       "id": "1780887041454",
@@ -42,7 +43,8 @@
         "chatgpt": true,
         "trueid": true,
         "youku": true
-      }
+      },
+      "password": "abcdefghijklmnop"
     },
     {
       "id": "1781272241788",
@@ -192,6 +194,55 @@
     {
       "id": "1781626063588",
       "email": "1",
+      "system": "MailySpace",
+      "isActive": true,
+      "pin": "",
+      "services": {
+        "disney": true,
+        "chatgpt": true,
+        "trueid": true,
+        "youku": true
+      }
+    },
+    {
+      "id": "1781967959157",
+      "email": "saksithonsaiyat",
+      "system": "MailySpace",
+      "isActive": true,
+      "pin": "",
+      "services": {
+        "disney": true,
+        "chatgpt": true,
+        "trueid": true,
+        "youku": true
+      }
+    },
+    {
+      "id": "1781970299694",
+      "isActive": true,
+      "pin": "",
+      "services": {
+        "disney": true,
+        "chatgpt": true,
+        "trueid": true,
+        "youku": true
+      }
+    },
+    {
+      "id": "1781970316313",
+      "email": "saksithonsaiyat@gmail.com",
+      "isActive": true,
+      "pin": "",
+      "services": {
+        "disney": true,
+        "chatgpt": true,
+        "trueid": true,
+        "youku": true
+      }
+    },
+    {
+      "id": "1782557230069",
+      "email": "aisstream-xqikqh@shipx.sbs",
       "system": "MailySpace",
       "isActive": true,
       "pin": "",

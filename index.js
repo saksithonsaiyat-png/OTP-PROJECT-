@@ -7,7 +7,8 @@ const simpleParser = require('mailparser').simpleParser;
 const admin = require('firebase-admin');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = Number(process.env.PORT || process.env.APP_PORT || 3000);
+const host = process.env.HOST || '0.0.0.0';
 
 // ========================================================
 // ⚙️ ตั้งค่าบัญชีอีเมลหลักของร้าน (Maily.space) - ลิงก์เชื่อมโยงกับฐานข้อมูล
@@ -40,10 +41,17 @@ try {
 }
 
 const SENDER_EMAILS = {
-    'disney': 'disneyplus@mail.disneyplus.com',
-    'chatgpt': 'noreply@openai.com',
-    'trueid': 'no-reply@trueid.net',
-    'youku': 'no-reply@youku.com'
+    'disney': 'code@notification.apps.disneyplus.com',
+    'chatgpt': 'noreply@tm.openai.com',
+    'trueid': 'message@verify.trueid.net',
+    'youku': 'service@notice.alibaba.com'
+};
+
+const SENDER_EMAIL_MATCHERS = {
+    'disney': ['code@notification.apps.disneyplus.com', 'disneyplus.com', 'disneyplus', 'disney.com'],
+    'chatgpt': ['noreply@tm.openai.com', 'openai.com', 'chatgpt'],
+    'trueid': ['message@verify.trueid.net', 'trueid.net', 'trueid.co.th', 'trueid'],
+    'youku': ['service@notice.alibaba.com', 'notice.alibaba.com', 'youku.com', 'youku', 'alibaba']
 };
 
 async function getRealOTP(service, targetEmail) {
@@ -55,6 +63,134 @@ async function getRealOTP(service, targetEmail) {
     const emails = await getEmails();
     const emailObj = emails.find(e => e.email === targetEmail);
 
+    // 1. Maily Space REST API integration
+    const isMailySpace = (emailObj && emailObj.system === 'MailySpace') || 
+                          targetEmail.toLowerCase().endsWith('maily.space') || 
+                          !targetEmail.toLowerCase().endsWith('@gmail.com');
+    if (isMailySpace) {
+        const globalSettings = await getGlobalSettings();
+        const dbMailyPass = globalSettings.mailyPass || '';
+        if (dbMailyPass === '' || dbMailyPass === 'YOUR_PASSWORD') {
+            console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ Maily Space API Token is not configured.`);
+            throw new Error('กรุณาตั้งค่า API Token ของ Maily Space ในระบบหลังบ้านก่อนใช้งาน');
+        }
+
+        try {
+            console.log(`[MailySpace Debug] Fetching emails via REST API for target: ${targetEmail}`);
+            const apiKey = dbMailyPass.replace(/\s+/g, '');
+            const postData = JSON.stringify({
+                apiKey: apiKey,
+                email: targetEmail,
+                size: 50
+            });
+
+            let data;
+            if (typeof fetch === 'function') {
+                const response = await fetch('https://api.maily.space/v1/mails', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: postData
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    console.error(`[MailySpace API Error] Status: ${response.status}, Response: ${errText}`);
+                    throw new Error(`Maily Space API returned status ${response.status}`);
+                }
+                data = await response.json();
+            } else {
+                // Fallback using built-in https module
+                const https = require('https');
+                data = await new Promise((resolve, reject) => {
+                    const req = https.request({
+                        hostname: 'api.maily.space',
+                        path: '/v1/mails',
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Content-Length': Buffer.byteLength(postData)
+                        }
+                    }, (res) => {
+                        let body = '';
+                        res.on('data', (chunk) => body += chunk);
+                        res.on('end', () => {
+                            if (res.statusCode < 200 || res.statusCode >= 300) {
+                                reject(new Error(`API returned status ${res.statusCode}: ${body}`));
+                            } else {
+                                try {
+                                    resolve(JSON.parse(body));
+                                } catch (e) {
+                                    reject(e);
+                                }
+                            }
+                        });
+                    });
+                    req.on('error', (e) => reject(e));
+                    req.write(postData);
+                    req.end();
+                });
+            }
+
+            let mailsArray = null;
+            if (data && data.data && Array.isArray(data.data.mails)) {
+                mailsArray = data.data.mails;
+            } else if (data && Array.isArray(data.mails)) {
+                mailsArray = data.mails;
+            }
+
+            if (!mailsArray) {
+                throw new Error('รูปแบบการตอบกลับจาก Maily Space API ไม่ถูกต้อง');
+            }
+
+            const nowMs = Date.now();
+            const tenMinMs = 10 * 60 * 1000;
+            const results = [];
+
+            for (const mail of mailsArray) {
+                const emailDate = new Date(mail.createdAt);
+                
+                // Maily Space API returns emails ordered by createdAt descending (newest first).
+                // Let's filter emails from last 10 minutes.
+                if (nowMs - emailDate.getTime() > tenMinMs) {
+                    continue; // skip old
+                }
+
+                // Check sender
+                const matchers = SENDER_EMAIL_MATCHERS[service] || [senderEmail];
+                const matchesSender = matchers.some(matcher => mail.from.toLowerCase().includes(matcher.toLowerCase()));
+                if (!matchesSender) {
+                    continue;
+                }
+
+                const emailBody = mail.text || mail.html || '';
+                const otpRegex = /\b\d{4,6}\b/;
+                const match = emailBody.match(otpRegex);
+
+                if (match) {
+                    results.push({
+                        code: match[0],
+                        timestamp: emailDate.getTime()
+                    });
+                }
+            }
+
+            if (results.length === 0) {
+                console.log(`❌ No new OTP email found via MailySpace API for ${targetEmail}`);
+                throw new Error('ยังไม่มีข้อความ OTP เข้ามา กรุณารอสักครู่แล้วลองใหม่');
+            }
+
+            console.log(`✅ Found ${results.length} OTPs via MailySpace API`);
+            return results;
+
+        } catch (error) {
+            console.error('🔥 MailySpace API Error:', error.message);
+            throw new Error(error.message || 'ไม่สามารถดึงข้อความจาก Maily Space ได้');
+        }
+    }
+
+    // 2. Generic IMAP (Gmail or other custom domain fallback)
     let activeConfig;
     if (emailObj && emailObj.system === 'Gmail') {
         if (!emailObj.password || emailObj.password.trim() === '') {
@@ -86,49 +222,119 @@ async function getRealOTP(service, targetEmail) {
                 host: globalSettings.mailyHost || 'mail.maily.space',
                 port: parseInt(globalSettings.mailyPort) || 993,
                 tls: globalSettings.mailyTls !== false,
-                authTimeout: 15000,
-                tlsOptions: { rejectUnauthorized: false }
+                authTimeout: 30000,
+                connTimeout: 30000,
+                keepalive: false,
+                family: 4,
+                tlsOptions: {
+                    rejectUnauthorized: false,
+                    minVersion: 'TLSv1',
+                    ciphers: 'ALL'
+                }
             }
         };
     }
 
     try {
-        console.log(`[${new Date().toLocaleTimeString()}] ⏳ Connecting IMAP (${activeConfig.imap.host}) to find OTP of ${service} for ${targetEmail}...`);
-        const connection = await imaps.connect(activeConfig);
-        await connection.openBox('INBOX');
+        const isGmail = emailObj && emailObj.system === 'Gmail';
+        let connection;
+
+        try {
+            console.log(`[IMAP Debug] Attempting connection to HOST: ${activeConfig.imap.host} | PORT: ${activeConfig.imap.port} | USER: ${activeConfig.imap.user} | TLS: ${activeConfig.imap.tls}`);
+            connection = await imaps.connect(activeConfig);
+            await connection.openBox('INBOX');
+        } catch (primaryErr) {
+            console.error(`[${new Date().toLocaleTimeString()}] ❌ Primary IMAP Connection Error: message="${primaryErr.message}", code="${primaryErr.code || primaryErr.errno}"`);
+            
+            if (isGmail) {
+                throw primaryErr;
+            }
+
+            // Fallback connection for custom domain
+            const fallbackConfig = {
+                imap: {
+                    ...activeConfig.imap,
+                    port: 143,
+                    tls: false,
+                    authTimeout: 30000,
+                    connTimeout: 30000
+                }
+            };
+
+            try {
+                console.log(`[IMAP Debug] Attempting connection to HOST: ${fallbackConfig.imap.host} | PORT: ${fallbackConfig.imap.port} | USER: ${fallbackConfig.imap.user} | TLS: ${fallbackConfig.imap.tls}`);
+                connection = await imaps.connect(fallbackConfig);
+                await connection.openBox('INBOX');
+            } catch (fallbackErr) {
+                console.error(`[${new Date().toLocaleTimeString()}] ❌ Fallback IMAP Connection Error: message="${fallbackErr.message}", code="${fallbackErr.code || fallbackErr.errno}"`);
+                throw new Error("Connection failed to " + activeConfig.imap.host + " (Code: " + (fallbackErr.code || fallbackErr.message) + ")");
+            }
+        }
 
         const searchCriteria = [
-            'UNSEEN',
-            ['FROM', senderEmail],
             ['TO', targetEmail]
         ];
 
         const fetchOptions = { bodies: ['HEADER', 'TEXT', ''], markSeen: true };
         const messages = await connection.search(searchCriteria, fetchOptions);
 
-        if (messages.length === 0) {
-            connection.end();
+        const nowMs = Date.now();
+        const tenMinMs = 10 * 60 * 1000;
+        const results = [];
+
+        // Parse from newest to oldest
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i];
+            const allParts = msg.parts.find(p => p.which === '');
+            const parsedMail = await simpleParser(allParts.body);
+            const emailDate = parsedMail.date ? new Date(parsedMail.date) : new Date(msg.attributes.date);
+
+            if (nowMs - emailDate.getTime() > tenMinMs) {
+                break;
+            }
+
+            // Check sender
+            const fromAddresses = [];
+            if (parsedMail.from && Array.isArray(parsedMail.from.value)) {
+                parsedMail.from.value.forEach(v => {
+                    if (v.address) fromAddresses.push(v.address.toLowerCase());
+                    if (v.name) fromAddresses.push(v.name.toLowerCase());
+                });
+            }
+            if (parsedMail.from && parsedMail.from.text) {
+                fromAddresses.push(parsedMail.from.text.toLowerCase());
+            }
+            
+            const matchers = SENDER_EMAIL_MATCHERS[service] || [senderEmail];
+            const matchesSender = matchers.some(matcher => {
+                const lowerMatcher = matcher.toLowerCase();
+                return fromAddresses.some(addr => addr.includes(lowerMatcher));
+            });
+            if (!matchesSender) {
+                continue;
+            }
+
+            const emailBody = parsedMail.text || parsedMail.html || '';
+            const otpRegex = /\b\d{4,6}\b/;
+            const match = emailBody.match(otpRegex);
+
+            if (match) {
+                results.push({
+                    code: match[0],
+                    timestamp: emailDate.getTime()
+                });
+            }
+        }
+
+        connection.end();
+
+        if (results.length === 0) {
             console.log(`❌ No new OTP email found for ${targetEmail}`);
             throw new Error('ยังไม่มีข้อความ OTP เข้ามา กรุณารอสักครู่แล้วลองใหม่');
         }
 
-        const latestMessage = messages[messages.length - 1];
-        const allParts = latestMessage.parts.find(p => p.which === '');
-        const parsedMail = await simpleParser(allParts.body);
-        const emailBody = parsedMail.text || parsedMail.html || '';
-
-        connection.end();
-
-        const otpRegex = /\b\d{4,6}\b/;
-        const match = emailBody.match(otpRegex);
-
-        if (match) {
-            console.log(`✅ Found OTP: ${match[0]}`);
-            return match[0];
-        } else {
-            console.log(`❌ Found email but failed to extract OTP`);
-            throw new Error('พบอีเมลแต่ไม่สามารถดึงรหัสตัวเลขได้');
-        }
+        console.log(`✅ Found ${results.length} OTPs`);
+        return results;
     } catch (error) {
         console.error('🔥 IMAP Error:', error.message);
         throw new Error(error.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์อีเมลได้ โปรดตรวจสอบการตั้งค่า');
@@ -186,8 +392,10 @@ app.get('/api/recent-otps', async (req, res) => {
             .map(m => {
                 const codeMatch = m.message.match(/\b\d{4,6}\b/);
                 const ts = m.timestamp || null;
-                const minutesAgo = ts ? Math.round((nowMs - ts) / 60000) : null;
-                return codeMatch ? { code: codeMatch[0], time: m.time, timestamp: ts, minutesAgo } : null;
+                const mTime = ts ? new Date(ts) : new Date();
+                const timeStr = mTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) + ' น.';
+                const dateStr = mTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Bangkok' });
+                return codeMatch ? { code: codeMatch[0], time: timeStr, date: dateStr, timestamp: ts } : null;
             })
             .filter(Boolean);
 
@@ -501,12 +709,12 @@ async function migrateLocalToFirestore() {
     }
 }
 
-async function logToInbox(email, service, code, system) {
-    const now = Date.now();
+async function logToInbox(email, service, code, system, timestamp) {
+    const ts = timestamp || Date.now();
     const msg = {
-        id: now.toString(),
-        timestamp: now,
-        time: new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }),
+        id: ts.toString(),
+        timestamp: ts,
+        time: new Date(ts).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }),
         from: `no-reply@${service}.com`,
         to: email,
         subject: `รหัสยืนยัน OTP ของคุณสำหรับ ${service.toUpperCase()}`,
@@ -554,53 +762,72 @@ app.get('/api/get-otp', async (req, res) => {
     // เช็ครหัส PIN (ถ้ามีการตั้งไว้)
     if (userEmail.pin && userEmail.pin !== "") {
         if (!pin) return res.json({ success: false, requirePin: true });
-        if (pin !== userEmail.pin) return res.status(400).json({ success: false, error: "รหัส PIN ความปลอดภัยไม่ถูกต้อง" });
+        if (pin !== userEmail.pin) return res.status(400).json({ success: false, error: "รหัส PIN ความปลอดภัยไม่ถูกต้อง", invalidPin: true });
     }
 
-    let otpCode;
+    let otps;
     try {
-        const realOtp = await getRealOTP(service, email);
-        if (realOtp) {
-            otpCode = realOtp;
-        } else {
-            return res.status(400).json({ success: false, error: "ไม่พบรหัส OTP ในกล่องข้อความ" });
-        }
+        otps = await getRealOTP(service, email);
     } catch (err) {
         return res.status(400).json({ success: false, error: err.message });
     }
 
-    const timeNow = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
-    const dateNow = new Date().toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' });
-
-    // บันทึกประวัติและกล่องข้อความ
-    await addHistory({ time: timeNow, dateStr: dateNow, email, device: device || 'ไม่ระบุ', service, system: systemType, otp: otpCode });
-    await logToInbox(email, service, otpCode, systemType);
+    // Log all matching OTPs from the last 10 minutes to prevent duplicates
+    const inbox = await getInbox();
+    for (const otp of otps) {
+        const ts = otp.timestamp;
+        const code = otp.code;
+        const alreadyLogged = inbox.some(m => m.to === email && m.timestamp === ts && m.message.includes(code));
+        if (!alreadyLogged) {
+            const itemTime = new Date(ts);
+            const timeStr = itemTime.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+            const dateStr = itemTime.toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' });
+            await addHistory({ time: timeStr, dateStr, email, device: device || 'ไม่ระบุ', service, system: systemType, otp: code, timestamp: ts });
+            await logToInbox(email, service, code, systemType, ts);
+        }
+    }
 
     // Notify real-time listeners
     broadcastEvent('refresh');
 
-    // ดึง OTP ย้อนหลัง 10 นาที (ยกเว้นอันที่เพิ่งสร้าง)
+    const newestOtp = otps[0];
+    const otpCode = newestOtp.code;
+    const otpTimestamp = newestOtp.timestamp;
+    const rTime = new Date(otpTimestamp);
+    const otpTime = rTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) + ' น.';
+    const otpDateStr = rTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Bangkok' });
+
+    // Fetch recent OTPs from inbox
     const tenMinMs = 10 * 60 * 1000;
     const nowMs = Date.now();
-    const inbox = await getInbox();
-    const recentOtps = inbox
+    const updatedInbox = await getInbox();
+    const recentOtps = updatedInbox
         .filter(m => {
             if (m.to !== email) return false;
             if (!m.subject.toLowerCase().includes(service)) return false;
             const ts = m.timestamp ? m.timestamp : (nowMs - tenMinMs - 1);
             const age = nowMs - ts;
-            return age > 1000 && age <= tenMinMs;
+            return age >= 0 && age <= tenMinMs;
         })
         .slice(0, 9)
         .map(m => {
             const codeMatch = m.message.match(/\b\d{4,6}\b/);
             const ts = m.timestamp || null;
-            const minutesAgo = ts ? Math.round((nowMs - ts) / 60000) : null;
-            return codeMatch ? { code: codeMatch[0], time: m.time, timestamp: ts, minutesAgo } : null;
+            const mTime = ts ? new Date(ts) : new Date();
+            const timeStr = mTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) + ' น.';
+            const dateStr = mTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Bangkok' });
+            return codeMatch ? { code: codeMatch[0], time: timeStr, date: dateStr, timestamp: ts } : null;
         })
         .filter(Boolean);
 
-    res.json({ success: true, code: otpCode, recentOtps });
+    res.json({ 
+        success: true, 
+        code: otpCode, 
+        timestamp: otpTimestamp,
+        time: otpTime,
+        date: otpDateStr,
+        recentOtps 
+    });
 });
 
 app.get('/api/settings', async (req, res) => {
@@ -701,7 +928,7 @@ app.get('/admin', (req, res) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบจัดการหลังบ้าน (Admin Dashboard)</title>
-    <link rel="icon" type="image/png" href="./logo-light.png" />
+    <link rel="icon" type="image/png" href="./logo-dark.png" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <link href="https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@latest/fonts/LINESeedSansTH/LINESeedSansTH.css" rel="stylesheet" />
@@ -709,12 +936,13 @@ app.get('/admin', (req, res) => {
         html { font-size: 108%; }
         body { font-family: 'LINE Seed Sans TH', sans-serif; background-color: #f3f4f6; }
         .tab-btn.active { background-color: #e5e7eb; color: #111827; font-weight: 700; border-left: 4px solid #3b82f6; }
+        [x-cloak] { display: none !important; }
     </style>
 </head>
 <body x-data="adminApp()">
 
     <!-- หน้า Login -->
-    <div x-show="!isLoggedIn" class="min-h-screen flex items-center justify-center bg-gray-900 p-4">
+    <div x-cloak x-show="!isLoggedIn" class="min-h-screen flex items-center justify-center bg-gray-900 p-4">
         <div class="bg-white p-6 md:p-10 rounded-2xl shadow-2xl w-full max-w-sm text-center">
             <div class="bg-blue-100 text-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg></div>
             <h2 class="text-xl md:text-2xl font-bold mb-6 text-gray-800">ระบบจัดการหลังบ้าน</h2>
@@ -727,7 +955,7 @@ app.get('/admin', (req, res) => {
     </div>
 
     <!-- หน้า Dashboard -->
-    <div x-show="isLoggedIn" style="display:none;" class="flex flex-col md:flex-row h-screen overflow-hidden">
+    <div x-cloak x-show="isLoggedIn" style="display:none;" class="flex flex-col md:flex-row h-screen overflow-hidden">
         
         <!-- Mobile Header Bar -->
         <div class="md:hidden flex items-center justify-between p-4 bg-white border-b border-gray-200 z-30 shadow-sm w-full">
@@ -750,8 +978,7 @@ app.get('/admin', (req, res) => {
              class="fixed md:static inset-y-0 left-0 w-64 bg-white text-gray-700 flex flex-col shadow-lg border-r border-gray-200 z-50 md:z-20 transform transition-transform duration-300 ease-in-out h-full">
             <div class="p-6 text-xl font-black text-center border-b border-gray-100 text-gray-900 flex flex-col items-center justify-center space-y-2">
                 <div class="flex items-center justify-center space-x-2">
-                    <span><svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></span><span>Admin Panel</span>
-                </div>
+                    <span><svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></span><span>Admin Panel</span></div>
             </div>
             <nav class="flex-1 py-4 flex flex-col space-y-1 bg-white overflow-y-auto">
                 <button @click="tab = 'dashboard'; mobileMenuOpen = false" :class="tab=='dashboard'?'bg-gray-100 text-gray-900 border-l-4 border-blue-600 font-bold':'border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="w-full text-left px-6 py-4 font-medium transition-all flex items-center space-x-3"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg><span>ภาพรวม / Dashboard</span></button>
@@ -795,7 +1022,7 @@ app.get('/admin', (req, res) => {
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
-                        <div class="text-3xl md:text-4xl font-black text-blue-600 mt-2" x-text="countAppDaily('disney')"></div>
+                        <div class="text-3xl md:text-4xl font-black mt-2" style="color: #02ABB2;" x-text="countAppDaily('disney')"></div>
                     </div>
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">ChatGPT</div>
@@ -815,7 +1042,7 @@ app.get('/admin', (req, res) => {
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
-                        <div class="text-3xl md:text-4xl font-black text-blue-600 mt-2" x-text="countAppWeekly('disney')"></div>
+                        <div class="text-3xl md:text-4xl font-black mt-2" style="color: #02ABB2;" x-text="countAppWeekly('disney')"></div>
                     </div>
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">ChatGPT</div>
@@ -835,7 +1062,7 @@ app.get('/admin', (req, res) => {
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
-                        <div class="text-3xl md:text-4xl font-black text-blue-600 mt-2" x-text="countAppMonthly('disney')"></div>
+                        <div class="text-3xl md:text-4xl font-black mt-2" style="color: #02ABB2;" x-text="countAppMonthly('disney')"></div>
                     </div>
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">ChatGPT</div>
@@ -1045,7 +1272,103 @@ app.get('/admin', (req, res) => {
                         </div><!-- end guide content -->
                     </div>
                 </div><!-- end guide section -->
- 
+
+                <!-- คู่มือตั้งค่า Maily Space (MailySpace Tab Only) -->
+                <div x-show="emailTab === 'MailySpace'" class="mb-6" x-transition>
+                    <div class="rounded-2xl border border-blue-200 overflow-hidden shadow-sm">
+                        <!-- Header Toggle -->
+                        <button @click="showMailyGuide = !showMailyGuide" class="w-full flex items-center justify-between p-4 md:p-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 transition-all">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V19.5A2.25 2.25 0 0010.5 21h6a2.25 2.25 0 002.25-2.25v-.75M12 12.75h.008v.008H12v-.008z" /></svg>
+                                </div>
+                                <div class="text-left">
+                                    <div class="font-bold text-base">วิธีตั้งค่าและเชื่อมต่อเมล Maily.space / Domain</div>
+                                    <div class="text-blue-100 text-xs mt-0.5">คลิกเพื่อดูคู่มือตั้งค่าเซิร์ฟเวอร์และดึงข้อมูลเมล</div>
+                                </div>
+                            </div>
+                            <svg class="w-5 h-5 transition-transform duration-300" :class="showMailyGuide ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+
+                        <!-- Guide Content -->
+                        <div x-show="showMailyGuide" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="bg-white p-5 md:p-6">
+
+                            <!-- Intro note -->
+                            <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 flex items-start space-x-3">
+                                <svg class="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 11.518 1.3l-.041.02-1.041.52a.75.75 0 00-.402.668V14.25m3.75-3.75h.008v.008H14.25v-.008zM12 21.75c5.385 0 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25 2.25 6.615 2.25 12s4.365 9.75 9.75 9.75z" /></svg>
+                                <div>
+                                    <div class="font-bold text-blue-800 text-sm">หลักการทำงานของระบบอีเมลโดเมน Maily.space</div>
+                                    <div class="text-blue-700 text-xs mt-1">ระบบจะเชื่อมต่อผ่าน REST API ไปยังเซิร์ฟเวอร์ส่วนกลางของ Maily.space ด้วย API Token (apiKey) ของคุณ จากนั้นเมื่อลูกค้ากดขอรหัส OTP ระบบจะดึงข้อความจาก API แล้วนำมาคัดกรองตามชื่ออีเมลผู้รับและบริการที่เลือกโดยอัตโนมัติ</div>
+                                </div>
+                            </div>
+
+                            <!-- Steps -->
+                            <div class="space-y-6">
+
+                                <!-- Step 1 -->
+                                <div class="flex gap-4 items-start pb-4 border-b border-gray-100">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">1</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">เตรียม API Token จาก Maily.space</div>
+                                        <div class="text-sm text-gray-500 mb-1">เข้าสู่ระบบ Maily.space ไปที่หน้า API หรือ Dashboard เพื่อคัดลอก API Token (API Key) ของคุณ:</div>
+                                        <ul class="list-disc list-inside text-xs text-gray-600 mt-1.5 space-y-1 pl-1">
+                                            <li><strong>API Token (apiKey):</strong> รหัส Token หลักที่ได้จากเมนู API ของ Maily.space (ปกติขึ้นต้นด้วย <span class="font-mono text-gray-800 bg-gray-100 px-1 py-0.5 rounded">sk_v1_...</span>)</li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <!-- Step 2 -->
+                                <div class="flex gap-4 items-start pb-4 border-b border-gray-100">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">2</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">ตั้งค่าเชื่อมต่อ Maily.space</div>
+                                        <div class="text-sm text-gray-500 mb-2">นำ API Token ที่คัดลอกไว้ไปบันทึกในระบบหลังบ้าน:</div>
+                                        <ol class="list-decimal list-inside text-xs text-gray-600 space-y-1.5 pl-1 mb-2">
+                                            <li>ไปที่เมนู <strong class="text-gray-800">"ตั้งค่าระบบหลังบ้าน" (Settings)</strong> ในแถบเมนูซ้ายมือ</li>
+                                            <li>เลื่อนไปที่หัวข้อ <strong class="text-gray-800">"ตั้งค่าเซิร์ฟเวอร์โดเมนหลัก (Maily.space / Domain)"</strong></li>
+                                            <li>กรอก API Token ลงในช่อง <strong class="text-gray-800">"API Token / รหัสผ่านหลัก"</strong></li>
+                                            <li>คลิกปุ่ม <span class="bg-gray-800 text-white px-2 py-0.5 rounded font-bold">บันทึกข้อมูลเซิร์ฟเวอร์</span></li>
+                                        </ol>
+                                        <div class="text-xs text-amber-600 bg-amber-50 border border-amber-100 p-2 rounded-lg inline-block font-medium">⚠️ หากไม่ใส่ API Token นี้ หรือรหัสไม่ถูกต้อง ระบบจะไม่สามารถดึงรหัส OTP จาก Maily Space ได้เลย</div>
+                                    </div>
+                                </div>
+
+                                <!-- Step 3 -->
+                                <div class="flex gap-4 items-start pb-4 border-b border-gray-100">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm">3</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">เพิ่มที่อยู่อีเมล Domain ของลูกค้า</div>
+                                        <div class="text-sm text-gray-500 mb-2">เมื่อตั้งค่าเซิร์ฟเวอร์หลักเสร็จแล้ว ให้ลงทะเบียนอีเมลของลูกค้าที่ใช้งานเข้าสู่ระบบ:</div>
+                                        <ol class="list-decimal list-inside text-xs text-gray-600 space-y-1.5 pl-1">
+                                            <li>กลับมาที่เมนู <strong class="text-gray-800">"จัดการอีเมลทั้งหมด" (Manage Emails)</strong></li>
+                                            <li>คลิกแท็บ <strong class="text-blue-600">"อีเมลโดเมนจาก Maily Space"</strong></li>
+                                            <li>ในกล่อง <strong class="text-gray-800">"เพิ่มอีเมล Domain ใหม่"</strong> ให้กรอกอีเมลย่อยหรือโดเมนของลูกค้าลงไป (เช่น <span class="font-mono text-gray-800 bg-gray-100 px-1 py-0.5 rounded">customer@maily.space</span> หรืออีเมลโดเมนย่อยอื่นๆ)</li>
+                                            <li>คลิกปุ่ม <span class="bg-emerald-600 text-white px-2.5 py-0.5 rounded font-bold">เพิ่มข้อมูล</span></li>
+                                        </ol>
+                                        <div class="text-xs text-gray-400 mt-2">*(สำหรับอีเมลระบบ Maily.space ไม่จำเป็นต้องกรอกรหัสผ่านสำหรับแอปเหมือน Gmail เนื่องจากใช้รหัสผ่านรวมจากเซิร์ฟเวอร์หลักที่ตั้งไว้ในขั้นตอนที่ 2)*</div>
+                                    </div>
+                                </div>
+
+                                <!-- Step 4 -->
+                                <div class="flex gap-4 items-start">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-black text-sm">4</div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-gray-800 mb-1">ทดสอบการดึงข้อมูลและเปิดบริการแยกแอป</div>
+                                        <div class="text-sm text-gray-500 mb-2">อีเมลที่เพิ่มเข้ามาจะแสดงอยู่ในตารางด้านล่าง แอดมินสามารถดำเนินการต่อได้ดังนี้:</div>
+                                        <ul class="list-disc list-inside text-xs text-gray-600 space-y-1.5 pl-1">
+                                            <li>กดเปิด/ปิด การให้บริการแยกรายแอป (Disney, GPT, TrueID, Youku) สำหรับอีเมลแต่ละตัวได้อิสระ</li>
+                                            <li>ตั้งรหัสผ่าน PIN ประจำอีเมลได้โดยแอดมินหรือให้ผู้ใช้กรอกเพื่อความปลอดภัย</li>
+                                            <li>เมื่อลูกค้าส่งรหัส OTP ไปยังอีเมลดังกล่าว ลูกค้าจะสามารถกดปุ่มดึง OTP ผ่านหน้าบ้านได้ทันที!</li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                            </div><!-- end steps -->
+
+                        </div><!-- end guide content -->
+                    </div>
+                </div><!-- end guide section -->
+
                 <!-- แสดงผลตาราง (Desktop) หรือการ์ด (Mobile) -->
                 <!-- ตารางอีเมล (Desktop - lg ขึ้นไป) -->
                 <div class="hidden lg:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
@@ -1065,12 +1388,14 @@ app.get('/admin', (req, res) => {
                         <tbody>
                             <template x-for="e in paginatedEmails" :key="e.id">
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                    <td class="p-3 font-bold text-gray-800 text-sm break-all" x-text="e.email"></td>
+                                    <td class="p-3 font-bold text-gray-800 text-sm">
+                                        <div class="truncate max-w-[180px]" :title="e.email" x-text="e.email"></div>
+                                    </td>
                                     
                                     <template x-if="emailTab === 'Gmail'">
                                         <td class="p-3">
                                             <div class="flex justify-center items-center space-x-1.5">
-                                                <input type="text" x-model="e.password" placeholder="ไม่มีรหัสผ่านแอป" class="border border-gray-300 rounded-lg p-2 w-32 text-center font-mono font-bold text-xs outline-none focus:border-blue-500 bg-white">
+                                                <input type="text" x-model="e.password" placeholder="ไม่มีรหัสผ่านแอป" class="border border-gray-300 rounded-lg p-2 w-32 text-center font-bold text-xs outline-none focus:border-blue-500 bg-white">
                                                 <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-2.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0">บันทึก</button>
                                             </div>
                                         </td>
@@ -1087,7 +1412,7 @@ app.get('/admin', (req, res) => {
                                     
                                     <td class="p-3">
                                         <div class="flex justify-center gap-1.5">
-                                            <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-blue-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">Disney</button>
+                                            <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-[#02ABB2] text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">Disney</button>
                                             <button @click="e.services.chatgpt = !e.services.chatgpt; saveEmail(e)" :class="e.services.chatgpt?'bg-emerald-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">GPT</button>
                                             <button @click="e.services.trueid = !e.services.trueid; saveEmail(e)" :class="e.services.trueid?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">TrueID</button>
                                             <button @click="e.services.youku = !e.services.youku; saveEmail(e)" :class="e.services.youku?'bg-sky-500 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">Youku</button>
@@ -1096,7 +1421,7 @@ app.get('/admin', (req, res) => {
                                     
                                     <td class="p-3">
                                         <div class="flex justify-center items-center space-x-1.5">
-                                            <input type="text" x-model="e.pin" maxlength="6" placeholder="ไม่ตั้ง PIN" class="border border-gray-300 rounded-lg p-2 w-20 text-center font-bold tracking-widest text-xs outline-none focus:border-blue-500 bg-white">
+                                            <input type="text" x-model="e.pin" maxlength="6" placeholder="ไม่ตั้ง PIN" :class="e.pin ? 'tracking-widest' : ''" class="border border-gray-300 rounded-lg p-2 w-20 text-center font-bold text-xs outline-none focus:border-blue-500 bg-white">
                                             <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-2.5 py-2 rounded-lg text-xs font-bold transition-all">บันทึก</button>
                                         </div>
                                     </td>
@@ -1139,7 +1464,7 @@ app.get('/admin', (req, res) => {
                             <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
                                 <span class="text-sm font-bold text-gray-500">จัดการบริการ</span>
                                 <div class="grid grid-cols-4 gap-1.5">
-                                    <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-blue-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">Disney</button>
+                                    <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-[#02ABB2] text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">Disney</button>
                                     <button @click="e.services.chatgpt = !e.services.chatgpt; saveEmail(e)" :class="e.services.chatgpt?'bg-emerald-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">GPT</button>
                                     <button @click="e.services.trueid = !e.services.trueid; saveEmail(e)" :class="e.services.trueid?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">TrueID</button>
                                     <button @click="e.services.youku = !e.services.youku; saveEmail(e)" :class="e.services.youku?'bg-sky-500 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">Youku</button>
@@ -1150,7 +1475,7 @@ app.get('/admin', (req, res) => {
                                 <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
                                     <span class="text-sm font-bold text-gray-500">รหัสผ่านสำหรับแอป</span>
                                     <div class="flex items-center space-x-2">
-                                        <input type="text" x-model="e.password" placeholder="ไม่มีรหัสผ่านแอป" class="border border-gray-300 rounded-lg p-2.5 flex-1 text-center font-mono font-bold text-xs outline-none focus:border-blue-500 bg-white">
+                                        <input type="text" x-model="e.password" placeholder="ไม่มีรหัสผ่านแอป" class="border border-gray-300 rounded-lg p-2.5 flex-1 text-center font-bold text-xs outline-none focus:border-blue-500 bg-white">
                                         <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-3 py-2.5 rounded-lg text-xs font-bold transition-all shrink-0">บันทึก</button>
                                     </div>
                                 </div>
@@ -1159,7 +1484,7 @@ app.get('/admin', (req, res) => {
                             <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
                                 <span class="text-sm font-bold text-gray-500">รหัส PIN ความปลอดภัย</span>
                                 <div class="flex items-center space-x-2">
-                                    <input type="text" x-model="e.pin" maxlength="6" placeholder="ไม่ตั้ง PIN" class="border border-gray-300 rounded-lg p-2.5 flex-1 text-center font-bold tracking-widest text-sm outline-none focus:border-blue-500 bg-white">
+                                    <input type="text" x-model="e.pin" maxlength="6" placeholder="ไม่ตั้ง PIN" :class="e.pin ? 'tracking-widest' : ''" class="border border-gray-300 rounded-lg p-2.5 flex-1 text-center font-bold text-xs outline-none focus:border-blue-500 bg-white">
                                     <button @click="saveEmail(e)" class="bg-gray-800 hover:bg-black text-white px-3 py-2.5 rounded-lg text-xs font-bold transition-all shrink-0">บันทึก</button>
                                 </div>
                             </div>
@@ -1189,7 +1514,7 @@ app.get('/admin', (req, res) => {
                 </div>
             </div>
 
-                        <!-- Tab: Inbox -->
+            <!-- Tab: Inbox -->
             <div x-show="tab === 'inbox'" class="p-4 md:p-6 max-w-7xl mx-auto">
                 <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-17.5 0V6.75A2.25 2.25 0 016.375 4.5h11.25a2.25 2.25 0 012.25 2.25v6.75m-17.625 0h-.375a2.25 2.25 0 00-2.25 2.25v1.5a2.25 2.25 0 002.25 2.25h19.5a2.25 2.25 0 002.25-2.25v-1.5a2.25 2.25 0 00-2.25-2.25h-.375" /></svg><span>กล่องจดหมาย (รวมทั้งหมด)</span></h1>
                 
@@ -1243,7 +1568,7 @@ app.get('/admin', (req, res) => {
                 </div>
             </div>
 
-                        <!-- Tab: History -->
+            <!-- Tab: History -->
             <div x-show="tab === 'history'" class="p-4 md:p-6 max-w-7xl mx-auto">
                 <h1 class="text-2xl md:text-3xl font-bold mb-6 md:mb-8 text-gray-800 border-b pb-4 flex items-center space-x-3"><svg class="w-8 h-8 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>ประวัติการทำรายการ / ค้นหา OTP</span></h1>
                 
@@ -1435,8 +1760,8 @@ app.get('/admin', (req, res) => {
                             <input type="text" x-model="db.globalSettings.mailyUser" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800" placeholder="aisstream">
                         </div>
                         <div>
-                            <label class="text-sm font-bold text-gray-600 block mb-1">Password / รหัสผ่าน</label>
-                            <input type="text" x-model="db.globalSettings.mailyPass" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800" placeholder="ใส่รหัสผ่านหลักที่นี่">
+                            <label class="text-sm font-bold text-gray-600 block mb-1">API Token / รหัสผ่านหลัก</label>
+                            <input type="text" x-model="db.globalSettings.mailyPass" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-medium text-gray-800" placeholder="ใส่ API Token (sk_v1_...) ของ Maily Space หรือรหัสผ่านหลัก">
                         </div>
                         <div class="flex items-center space-x-2 py-1">
                             <input type="checkbox" id="mailyTls" x-model="db.globalSettings.mailyTls" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
@@ -1461,7 +1786,7 @@ app.get('/admin', (req, res) => {
                             <input type="text" x-model="newAdminPass" class="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-gray-800">
                         </div>
                         <div class="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-                            <button @click="updateAdmin" class="bg-gray-800 hover:bg-black text-white font-bold py-3.5 rounded-xl shadow-md active:scale-95 transition-all w-full text-center">บันทึกการเปลี่ยนแปลงข้อมูล</button>
+                            <button @click="updateAdmin" class="bg-gray-800 hover:bg-black text-white font-bold py-3.5 rounded-xl shadow-md active:scale-95 transition-all w-full text-center">บันทึกข้อมูลผู้ดูแล</button>
                             <span x-show="adminSaved" class="text-emerald-600 font-bold bg-emerald-50 px-3 py-1 rounded-lg text-center">บันทึกสำเร็จแล้ว!</span>
                         </div>
                     </div>
@@ -1474,16 +1799,26 @@ app.get('/admin', (req, res) => {
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('adminApp', () => ({
-                isLoggedIn: false, loginUser: '', loginPass: '', loginError: false,
-                tab: 'dashboard', emailTab: 'Gmail', searchEmail: '', searchInbox: '', searchHistory: '', newEmail: '', newEmailPassword: '',
+                isLoggedIn: !!(localStorage.getItem('adminLoginTime') && (Date.now() - parseInt(localStorage.getItem('adminLoginTime')) < 10 * 60 * 1000)), loginUser: '', loginPass: '', loginError: false,
+                tab: localStorage.getItem('adminActiveTab') || 'dashboard', emailTab: 'Gmail', searchEmail: '', searchInbox: '', searchHistory: '', newEmail: '', newEmailPassword: '',
                 db: { emails: [], history: [], inbox: [], globalSettings: {} },
                 newAdminUser: '', newAdminPass: '', adminSaved: false, mobileMenuOpen: false,
                 inboxPage: 1, inboxPerPage: 10,
                 historyPage: 1, historyPerPage: 10,
                 emailPage: 1, emailPerPage: 10,
-                bannerFileName: 'ยังไม่ได้เลือกไฟล์', bannerImageData: '', showGmailGuide: false,
+                bannerFileName: 'ยังไม่ได้เลือกไฟล์', bannerImageData: '', showGmailGuide: false, showMailyGuide: false,
 
                 init() {
+                    this.$watch('tab', value => localStorage.setItem('adminActiveTab', value));
+
+                    // ตรวจสอบการคงเซสชันการล็อกอิน (ไม่เกิน 10 นาที)
+                    const loginTime = localStorage.getItem('adminLoginTime');
+                    if (loginTime && (Date.now() - parseInt(loginTime) < 10 * 60 * 1000)) {
+                        this.isLoggedIn = true;
+                        localStorage.setItem('adminLoginTime', Date.now()); // อัปเดตเวลาล่าสุด
+                        this.loadData();
+                    }
+
                     const eventSource = new EventSource('/api/events');
                     eventSource.onmessage = (event) => {
                         if (event.data === 'refresh' && this.isLoggedIn) {
@@ -1497,13 +1832,26 @@ app.get('/admin', (req, res) => {
                         body: JSON.stringify({username: this.loginUser, password: this.loginPass})
                     });
                     const data = await res.json();
-                    if(data.success) { this.isLoggedIn = true; this.loginError = false; this.loadData(); }
+                    if(data.success) { 
+                        this.isLoggedIn = true; 
+                        this.loginError = false; 
+                        localStorage.setItem('adminLoginTime', Date.now()); // บันทึกเวลาล็อกอิน
+                        this.loadData(); 
+                    }
                     else { this.loginError = true; }
                 },
-                logout() { this.isLoggedIn = false; this.loginUser = ''; this.loginPass = ''; },
+                logout() { 
+                    this.isLoggedIn = false; 
+                    this.loginUser = ''; 
+                    this.loginPass = ''; 
+                    localStorage.removeItem('adminLoginTime'); // ล้างข้อมูลล็อกอิน
+                },
                 async loadData() {
                     const res = await fetch('/api/admin/data');
                     this.db = await res.json();
+                    if (this.isLoggedIn) {
+                        localStorage.setItem('adminLoginTime', Date.now()); // อัปเดตเวลาการใช้งานล่าสุด
+                    }
                     if (!this.db.globalSettings.contactUrl) this.db.globalSettings.contactUrl = "https://lin.ee/tNXgZoM";
                     if (!this.db.globalSettings.guideUrl) this.db.globalSettings.guideUrl = "https://drive.google.com/drive/folders/1S0FGZFR58UJDFgG2FxLC1HdhGlQmM5h_";
                     if (!this.db.globalSettings.mailyHost) this.db.globalSettings.mailyHost = "mail.maily.space";
@@ -1679,9 +2027,9 @@ app.get('/admin', (req, res) => {
 </html>`);
 });
 
-app.listen(port, () => {
+app.listen(port, host, () => {
     console.log(`===========================================`);
-    console.log(`🚀 Server และ Admin Panel เปิดทำงานแล้วที่พอร์ต ${port}!`);
+    console.log(`🚀 Server และ Admin Panel เปิดทำงานแล้วที่ ${host}:${port}!`);
     console.log(`🌐 เข้าหน้าลูกค้าที่: http://localhost:${port}/`);
     console.log(`⚙️ เข้าหน้าแอดมินที่: http://localhost:${port}/admin`);
     console.log(`===========================================`);

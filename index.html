@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BEC OTP VERIFY</title>
-    <link rel="icon" type="image/png" href="./logo-light.png" />
+    <link rel="icon" type="image/png" href="./logo-dark.png" />
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@latest/fonts/LINESeedSansTH/LINESeedSansTH.css"
@@ -210,16 +210,18 @@
             <p class="text-sm text-neutral-500 dark:text-neutral-400 text-center mb-6">อีเมลนี้ถูกตั้งค่าความปลอดภัยไว้
             </p>
 
-            <input type="number" id="pin-input" placeholder="••••••" maxlength="6"
-                class="w-full text-center tracking-[1em] font-bold text-3xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-2xl px-5 py-4 outline-none mb-4 shadow-inner" />
+            <input type="text" inputmode="numeric" pattern="[0-9]*" id="pin-input" placeholder="••••••" maxlength="6"
+                onkeyup="if(event.key === 'Enter') submitPin()"
+                oninput="document.getElementById('pin-error').classList.add('hidden')"
+                class="w-full text-center tracking-[1em] font-bold text-3xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-2xl pl-[calc(1.25rem+1em)] pr-5 py-4 outline-none mb-4 shadow-inner" />
 
             <div id="pin-error" class="text-red-500 text-xs text-center mb-4 hidden font-medium"></div>
 
             <div class="flex space-x-3">
-                <button onclick="closePinModal()"
+                <button onclick="closePinModal(true)"
                     class="flex-1 py-3 rounded-xl font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 active:scale-95 transition-all">ยกเลิก</button>
-                <button onclick="submitPin()"
-                    class="flex-1 py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all">ยืนยัน</button>
+                <button id="pin-submit-btn" onclick="submitPin()"
+                    class="flex-1 py-3 rounded-xl font-bold bg-blue-600 text-white active:scale-95 transition-all">ยืนยัน</button>
             </div>
         </div>
     </div>
@@ -283,14 +285,14 @@
                 }
 
                 if (data.success) {
-                    closePinModal();
+                    closePinModal(true);
                     const now = new Date();
                     const nowMs = Date.now();
                     const newOtp = {
-                        id: nowMs,
-                        timestamp: nowMs,
-                        time: now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.',
-                        date: now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                        id: data.timestamp || nowMs,
+                        timestamp: data.timestamp || nowMs,
+                        time: data.time || (now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'),
+                        date: data.date || now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
                         title: `รหัสเข้าใช้งาน ${activeService.name}`,
                         code: data.code,
                         service: activeService.id
@@ -302,16 +304,14 @@
                             // หลีกเลี่ยงรหัสซ้ำ
                             const exists = otpList.find(o => o.code === r.code && o.service === activeService.id);
                             if (!exists) {
-                                const rTime = r.timestamp ? new Date(r.timestamp) : new Date();
                                 otpList.push({
                                     id: r.timestamp || (nowMs - Math.random() * 1000),
                                     timestamp: r.timestamp || null,
-                                    time: rTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.',
-                                    date: rTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                                    time: r.time || (new Date(r.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'),
+                                    date: r.date || new Date(r.timestamp).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
                                     title: `รหัสเข้าใช้งาน ${activeService.name}`,
                                     code: r.code,
-                                    service: activeService.id,
-                                    minutesAgo: r.minutesAgo
+                                    service: activeService.id
                                 });
                             }
                         });
@@ -320,14 +320,18 @@
                     }
                     renderOTPList(); startCooldown();
                 } else {
-                    if (reqData.pin !== '') {
+                    if (data.invalidPin) {
+                        openPinModal();
+                        document.getElementById('pin-input').value = '';
                         pinError.textContent = `* ${data.error}`; pinError.classList.remove('hidden');
                     } else {
+                        closePinModal(true);
                         errorMsg.textContent = `* ${data.error}`; errorMsg.classList.remove('opacity-0');
                     }
                 }
             } catch (error) {
                 console.error("Fetch API Error:", error);
+                closePinModal(true);
                 errorMsg.textContent = '* ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ระบบได้ โปรดตรวจสอบเซิร์ฟเวอร์หลังบ้าน';
                 errorMsg.classList.remove('opacity-0');
             }
@@ -368,6 +372,15 @@
                 alert(`ขออภัย บริการ ${SERVICES.find(s => s.id === serviceId).name} ยังไม่พร้อมใช้งานในขณะนี้`);
                 return;
             }
+
+            // Reset OTP history and errors
+            otpList = [];
+            const errorMsg = document.getElementById('error-message');
+            if (errorMsg) {
+                errorMsg.textContent = '';
+                errorMsg.classList.add('opacity-0');
+            }
+
             isSwitchingScreen = true; activeService = SERVICES.find(s => s.id === serviceId);
             document.getElementById('screen-home').classList.add('content-hidden');
             document.getElementById('main-brand-logo').classList.add('opacity-0', '-translate-x-4');
@@ -395,6 +408,14 @@
             document.getElementById('screen-service').classList.add('content-hidden');
             document.getElementById('back-btn').classList.add('opacity-0', '-translate-x-4');
 
+            // Reset OTP history and errors
+            otpList = [];
+            const errorMsg = document.getElementById('error-message');
+            if (errorMsg) {
+                errorMsg.textContent = '';
+                errorMsg.classList.add('opacity-0');
+            }
+
             setTimeout(() => {
                 document.getElementById('screen-service').classList.add('hidden');
                 document.getElementById('screen-home').classList.remove('hidden');
@@ -410,15 +431,28 @@
 
         function updateButton() {
             const btn = document.getElementById('fetch-btn');
+            const pinSubmitBtn = document.getElementById('pin-submit-btn');
             if (isLoading) {
                 btn.disabled = true; btn.className = "w-full py-4 rounded-2xl font-bold text-lg mb-8 bg-neutral-200 dark:bg-neutral-800 text-neutral-500 cursor-not-allowed tracking-wide flex items-center justify-center space-x-2";
                 btn.innerHTML = `<svg class="animate-spin h-5 w-5 text-neutral-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>กำลังตรวจสอบข้อมูล...</span>`;
+                if (pinSubmitBtn) {
+                    pinSubmitBtn.disabled = true;
+                    pinSubmitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
             } else if (cooldown > 0) {
                 btn.disabled = true; btn.className = "w-full py-4 rounded-2xl font-bold text-lg mb-8 bg-neutral-200 dark:bg-neutral-800 text-neutral-500 cursor-not-allowed flex items-center justify-center space-x-2";
                 btn.innerHTML = `<span>ลองใหม่ใน ${cooldown} วินาที</span>`;
+                if (pinSubmitBtn) {
+                    pinSubmitBtn.disabled = false;
+                    pinSubmitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
             } else {
                 btn.disabled = false; btn.className = `w-full py-4 rounded-2xl font-bold text-lg mb-8 ${activeService.bgCol} text-white shadow-lg active:scale-95 transition-all flex items-center justify-center space-x-2`;
                 btn.innerHTML = `<span>ค้นหาอีเมล ${activeService.name}</span>`;
+                if (pinSubmitBtn) {
+                    pinSubmitBtn.disabled = false;
+                    pinSubmitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
             }
         }
 
@@ -433,15 +467,14 @@
             const tenMinMs = 10 * 60 * 1000;
             container.innerHTML = filtered.map((item, index) => {
                 const ageMs = item.timestamp ? (nowMs - item.timestamp) : -1;
-                const isWithin10Min = ageMs >= 0 && ageMs <= tenMinMs;
-                const isNewest = index === 0;
+                const minutesAgo = item.timestamp ? Math.floor((nowMs - item.timestamp) / 60000) : -1;
                 let badgeHtml = '';
-                if (isNewest) {
-                    badgeHtml = `<span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-xs rounded-md shadow-sm font-bold">ล่าสุด</span>`;
-                } else if (isWithin10Min) {
-                    const minutesAgo = item.minutesAgo !== undefined ? item.minutesAgo : Math.round(ageMs / 60000);
-                    const label = minutesAgo <= 0 ? 'เมื่อสักครู่' : `เมื่อ ${minutesAgo} น. ที่แล้ว`;
-                    badgeHtml = `<span class="px-2 py-0.5 bg-yellow-50 text-yellow-600 text-xs rounded-md shadow-sm font-bold">${label}</span>`;
+                if (minutesAgo === 0) {
+                    badgeHtml = `<span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 text-xs rounded-md shadow-sm font-bold">ล่าสุด</span>`;
+                } else if (minutesAgo === 1 || minutesAgo === 2) {
+                    badgeHtml = `<span class="px-2 py-0.5 bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 text-xs rounded-md shadow-sm font-bold">เมื่อสักครู่</span>`;
+                } else if (minutesAgo > 2) {
+                    badgeHtml = `<span class="px-2 py-0.5 bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 text-xs rounded-md shadow-sm font-bold">เมื่อ ${minutesAgo} น. ที่แล้ว</span>`;
                 }
                 return `
                 <div class="bg-white dark:bg-neutral-900/80 border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 rounded-2xl overflow-hidden transition-all duration-300 animate-slideUpFade opacity-0" style="animation-delay: ${index * 0.08}s" onclick="toggleCard(${item.id})">
@@ -467,17 +500,40 @@
         function openPinModal() {
             const modal = document.getElementById('pin-modal'); const content = document.getElementById('pin-modal-content');
             document.getElementById('pin-input').value = ''; document.getElementById('pin-error').classList.add('hidden');
-            modal.classList.remove('hidden'); setTimeout(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-95'); }, 10);
+            
+            // ปรับสีปุ่มยืนยันตามสีของแอพที่เลือก
+            const submitBtn = document.getElementById('pin-submit-btn');
+            if (submitBtn && activeService) {
+                // ล้างสี bg- เดิมทั้งหมด
+                submitBtn.className = submitBtn.className.split(' ').filter(c => !c.startsWith('bg-')).join(' ');
+                // ใส่สีตามบริการปัจจุบัน
+                submitBtn.classList.add(activeService.bgCol);
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
         }
-        function closePinModal() {
+        function closePinModal(isCancel = false) {
             const modal = document.getElementById('pin-modal'); const content = document.getElementById('pin-modal-content');
-            modal.classList.add('opacity-0'); content.classList.add('scale-95');
-            setTimeout(() => { modal.classList.add('hidden'); }, 300); pendingRequest = null;
+            modal.classList.add('hidden');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            if (isCancel) {
+                pendingRequest = null;
+            }
+            document.getElementById('pin-input').value = '';
         }
         function submitPin() {
+            if (isLoading) return;
             const pin = document.getElementById('pin-input').value;
             if (pin.length < 4) { document.getElementById('pin-error').textContent = 'กรุณากรอกรหัส PIN ให้ครบ'; document.getElementById('pin-error').classList.remove('hidden'); return; }
-            if (pendingRequest) { pendingRequest.pin = pin; executeFetch(pendingRequest); }
+            if (pendingRequest) {
+                const req = pendingRequest;
+                req.pin = pin;
+                closePinModal(false);
+                executeFetch(req);
+            }
         }
 
         async function handleFetchOTP() {
@@ -489,6 +545,7 @@
             errorMsg.classList.add('opacity-0');
             // ระบบเลือก systemType อัตโนมัติ: ถ้าอีเมลลงท้ายด้วย @gmail.com ใช้ Gmail, นอกนั้นใช้ MailySpace
             const systemType = email.toLowerCase().endsWith('@gmail.com') ? 'Gmail' : 'MailySpace';
+
             pendingRequest = { email, device, system: systemType, service: activeService.id, pin: '' };
             executeFetch(pendingRequest);
         }
@@ -563,16 +620,14 @@
                                 data.recentOtps.forEach(r => {
                                     const exists = otpList.find(o => o.code === r.code && o.service === activeService.id);
                                     if (!exists) {
-                                        const rTime = r.timestamp ? new Date(r.timestamp) : new Date();
                                         otpList.push({
                                             id: r.timestamp || (nowMs - Math.random() * 1000),
                                             timestamp: r.timestamp || null,
-                                            time: rTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.',
-                                            date: rTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                                            time: r.time || (new Date(r.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'),
+                                            date: r.date || new Date(r.timestamp).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
                                             title: `รหัสเข้าใช้งาน ${activeService.name}`,
                                             code: r.code,
-                                            service: activeService.id,
-                                            minutesAgo: r.minutesAgo
+                                            service: activeService.id
                                         });
                                     }
                                 });
