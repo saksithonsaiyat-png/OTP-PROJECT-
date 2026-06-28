@@ -55,6 +55,49 @@ const SENDER_EMAIL_MATCHERS = {
 };
 
 const OTP_WINDOW_MS = 10 * 60 * 1000;
+const MAX_OTP_RESULTS = 5;
+const IMAP_TIMEOUT_MS = 25000;
+
+function safeErrorMessage(err, fallback = 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง') {
+    if (!err) return fallback;
+    if (typeof err === 'string') return err;
+    return err.message || fallback;
+}
+
+function mapImapError(err, isGmail) {
+    const msg = safeErrorMessage(err, '').toLowerCase();
+    if (msg.includes('auth') || msg.includes('credential') || msg.includes('password') || msg.includes('invalid') || msg.includes('login')) {
+        return 'ไม่พบอีเมลในระบบ';
+    }
+    if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('เชื่อมต่อใช้เวลานาน')) {
+        return 'การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองใหม่';
+    }
+    if (isGmail) return 'ไม่พบอีเมลในระบบ';
+    return safeErrorMessage(err, 'ไม่สามารถดึง OTP ได้ กรุณาลองใหม่');
+}
+
+function withTimeout(promise, ms, message) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function formatOtpResponseEntry(otp) {
+    const ts = otp.timestamp;
+    const mTime = new Date(ts);
+    return {
+        code: otp.code,
+        timestamp: ts,
+        time: mTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) + ' น.',
+        date: mTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Bangkok' })
+    };
+}
+
+function getImapSinceDate() {
+    return new Date(Date.now() - OTP_WINDOW_MS);
+}
 
 function stripHtml(html) {
     if (!html) return '';
@@ -191,8 +234,15 @@ async function fetchMailySpaceMails(apiKey, targetEmail) {
     });
 }
 
-function sortOtpsNewestFirst(results) {
-    return results.sort((a, b) => b.timestamp - a.timestamp);
+function sortOtpsNewestFirst(results, limit = MAX_OTP_RESULTS) {
+    const seen = new Set();
+    const unique = results.filter(r => {
+        const key = `${r.code}:${r.timestamp}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+    return unique.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
 }
 
 async function getRealOTP(service, targetEmail) {
@@ -272,6 +322,7 @@ async function getRealOTP(service, targetEmail) {
                 port: 993,
                 tls: true,
                 authTimeout: 15000,
+                connTimeout: 15000,
                 tlsOptions: { rejectUnauthorized: false }
             }
         };
@@ -302,22 +353,25 @@ async function getRealOTP(service, targetEmail) {
         };
     }
 
+    let connection = null;
     try {
         const isGmail = fetchMethod === 'gmail_imap';
-        let connection;
 
+        console.log(`[IMAP Debug] Attempting connection to HOST: ${activeConfig.imap.host} | PORT: ${activeConfig.imap.port} | USER: ${activeConfig.imap.user} | TLS: ${activeConfig.imap.tls}`);
         try {
-            console.log(`[IMAP Debug] Attempting connection to HOST: ${activeConfig.imap.host} | PORT: ${activeConfig.imap.port} | USER: ${activeConfig.imap.user} | TLS: ${activeConfig.imap.tls}`);
-            connection = await imaps.connect(activeConfig);
+            connection = await withTimeout(
+                imaps.connect(activeConfig),
+                IMAP_TIMEOUT_MS,
+                'การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองใหม่'
+            );
             await connection.openBox('INBOX');
         } catch (primaryErr) {
-            console.error(`[${new Date().toLocaleTimeString()}] ❌ Primary IMAP Connection Error: message="${primaryErr.message}", code="${primaryErr.code || primaryErr.errno}"`);
-            
+            console.error(`[${new Date().toLocaleTimeString()}] ❌ Primary IMAP Connection Error: message="${safeErrorMessage(primaryErr)}", code="${primaryErr.code || primaryErr.errno || ''}"`);
+
             if (isGmail) {
-                throw primaryErr;
+                throw new Error(mapImapError(primaryErr, true));
             }
 
-            // Fallback connection for custom domain
             const fallbackConfig = {
                 imap: {
                     ...activeConfig.imap,
@@ -330,20 +384,29 @@ async function getRealOTP(service, targetEmail) {
 
             try {
                 console.log(`[IMAP Debug] Attempting connection to HOST: ${fallbackConfig.imap.host} | PORT: ${fallbackConfig.imap.port} | USER: ${fallbackConfig.imap.user} | TLS: ${fallbackConfig.imap.tls}`);
-                connection = await imaps.connect(fallbackConfig);
+                connection = await withTimeout(
+                    imaps.connect(fallbackConfig),
+                    IMAP_TIMEOUT_MS,
+                    'การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองใหม่'
+                );
                 await connection.openBox('INBOX');
             } catch (fallbackErr) {
-                console.error(`[${new Date().toLocaleTimeString()}] ❌ Fallback IMAP Connection Error: message="${fallbackErr.message}", code="${fallbackErr.code || fallbackErr.errno}"`);
-                throw new Error("Connection failed to " + activeConfig.imap.host + " (Code: " + (fallbackErr.code || fallbackErr.message) + ")");
+                console.error(`[${new Date().toLocaleTimeString()}] ❌ Fallback IMAP Connection Error: message="${safeErrorMessage(fallbackErr)}", code="${fallbackErr.code || fallbackErr.errno || ''}"`);
+                throw new Error(mapImapError(fallbackErr, false));
             }
         }
 
-        const searchCriteria = [
-            ['TO', targetEmail]
-        ];
+        const sinceDate = getImapSinceDate();
+        const searchCriteria = isGmail
+            ? [['SINCE', sinceDate]]
+            : [['SINCE', sinceDate], ['TO', targetEmail]];
 
-        const fetchOptions = { bodies: ['HEADER', 'TEXT', ''], markSeen: true };
-        const messages = await connection.search(searchCriteria, fetchOptions);
+        const fetchOptions = { bodies: [''], markSeen: false };
+        const messages = await withTimeout(
+            connection.search(searchCriteria, fetchOptions),
+            IMAP_TIMEOUT_MS,
+            'การค้นหาอีเมลใช้เวลานานเกินไป กรุณาลองใหม่'
+        );
 
         const nowMs = Date.now();
         const results = [];
@@ -351,11 +414,13 @@ async function getRealOTP(service, targetEmail) {
         for (let i = messages.length - 1; i >= 0; i--) {
             const msg = messages[i];
             const allParts = msg.parts.find(p => p.which === '');
+            if (!allParts || !allParts.body) continue;
+
             const parsedMail = await simpleParser(allParts.body);
             const emailDate = parsedMail.date ? new Date(parsedMail.date) : new Date(msg.attributes.date);
 
             if (nowMs - emailDate.getTime() > OTP_WINDOW_MS) {
-                break;
+                continue;
             }
 
             const fromAddresses = [];
@@ -386,8 +451,6 @@ async function getRealOTP(service, targetEmail) {
             }
         }
 
-        connection.end();
-
         if (results.length === 0) {
             console.log(`❌ No new OTP email found for ${targetEmail}`);
             throw new Error('ยังไม่มีข้อความ OTP เข้ามา กรุณารอสักครู่แล้วลองใหม่');
@@ -396,8 +459,12 @@ async function getRealOTP(service, targetEmail) {
         console.log(`✅ Found ${results.length} OTPs`);
         return sortOtpsNewestFirst(results);
     } catch (error) {
-        console.error('🔥 IMAP Error:', error.message);
-        throw new Error(error.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์อีเมลได้ โปรดตรวจสอบการตั้งค่า');
+        console.error('🔥 IMAP Error:', safeErrorMessage(error));
+        throw new Error(safeErrorMessage(error, mapImapError(error, fetchMethod === 'gmail_imap')));
+    } finally {
+        if (connection) {
+            try { connection.end(); } catch (_) { /* ignore */ }
+        }
     }
 }
 
@@ -824,7 +891,7 @@ app.get('/api/get-otp', async (req, res) => {
     try {
         otps = await getRealOTP(service, email);
     } catch (err) {
-        return res.status(400).json({ success: false, error: err.message });
+        return res.status(400).json({ success: false, error: safeErrorMessage(err, 'ไม่สามารถดึง OTP ได้') });
     }
 
     // Log all matching OTPs from the last 10 minutes to prevent duplicates
@@ -845,43 +912,17 @@ app.get('/api/get-otp', async (req, res) => {
     // Notify real-time listeners
     broadcastEvent('refresh');
 
-    const newestOtp = otps[0];
-    const otpCode = newestOtp.code;
-    const otpTimestamp = newestOtp.timestamp;
-    const rTime = new Date(otpTimestamp);
-    const otpTime = rTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) + ' น.';
-    const otpDateStr = rTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Bangkok' });
+    const fetchedOtps = otps.map(formatOtpResponseEntry);
+    const newestOtp = fetchedOtps[0];
 
-    // Fetch recent OTPs from inbox
-    const tenMinMs = 10 * 60 * 1000;
-    const nowMs = Date.now();
-    const updatedInbox = await getInbox();
-    const recentOtps = updatedInbox
-        .filter(m => {
-            if (m.to !== email) return false;
-            if (!m.subject.toLowerCase().includes(service)) return false;
-            const ts = m.timestamp ? m.timestamp : (nowMs - tenMinMs - 1);
-            const age = nowMs - ts;
-            return age >= 0 && age <= tenMinMs;
-        })
-        .slice(0, 9)
-        .map(m => {
-            const codeMatch = m.message.match(/\b\d{4,6}\b/);
-            const ts = m.timestamp || null;
-            const mTime = ts ? new Date(ts) : new Date();
-            const timeStr = mTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) + ' น.';
-            const dateStr = mTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Bangkok' });
-            return codeMatch ? { code: codeMatch[0], time: timeStr, date: dateStr, timestamp: ts } : null;
-        })
-        .filter(Boolean);
-
-    res.json({ 
-        success: true, 
-        code: otpCode, 
-        timestamp: otpTimestamp,
-        time: otpTime,
-        date: otpDateStr,
-        recentOtps 
+    res.json({
+        success: true,
+        code: newestOtp.code,
+        timestamp: newestOtp.timestamp,
+        time: newestOtp.time,
+        date: newestOtp.date,
+        otps: fetchedOtps,
+        recentOtps: fetchedOtps
     });
 });
 
