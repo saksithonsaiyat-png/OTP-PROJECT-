@@ -261,8 +261,8 @@ async function getRealOTP(service, targetEmail) {
     let activeConfig;
     if (fetchMethod === 'gmail_imap') {
         if (!emailObj || !emailObj.password || emailObj.password.trim() === '') {
-            console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ Gmail App Password is not configured for ${targetEmail}.`);
-            throw new Error('กรุณาตั้งค่ารหัสผ่านสำหรับแอป (App Password) ของ Gmail บัญชีนี้ในระบบหลังบ้านก่อนใช้งาน');
+            console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ Gmail account not configured for ${targetEmail}.`);
+            throw new Error('ไม่พบอีเมลในระบบ');
         }
         activeConfig = {
             imap: {
@@ -807,11 +807,7 @@ app.get('/api/get-otp', async (req, res) => {
     const normalizedEmail = normalizeEmailAddress(email);
     let userEmail = emails.find(e => normalizeEmailAddress(e.email) === normalizedEmail);
     if (!userEmail) {
-        userEmail = {
-            id: Date.now().toString(), email: email, system: systemType, isActive: true, pin: "",
-            services: { disney: true, chatgpt: true, trueid: true, youku: true }
-        };
-        await saveEmail(userEmail);
+        return res.status(400).json({ success: false, error: "ไม่พบอีเมลในระบบ" });
     }
 
     // เช็คสถานะการให้บริการของอีเมลนี้
