@@ -54,20 +54,160 @@ const SENDER_EMAIL_MATCHERS = {
     'youku': ['service@notice.alibaba.com', 'notice.alibaba.com', 'youku.com', 'youku', 'alibaba']
 };
 
+const OTP_WINDOW_MS = 10 * 60 * 1000;
+
+function stripHtml(html) {
+    if (!html) return '';
+    return html
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+        .replace(/&amp;/g, '&')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function normalizeEmailAddress(value) {
+    if (!value) return '';
+    return String(value).toLowerCase().trim();
+}
+
+function matchesServiceSender(fromValue, service, senderEmail) {
+    const fromText = normalizeEmailAddress(fromValue);
+    if (!fromText) return false;
+    const matchers = SENDER_EMAIL_MATCHERS[service] || [senderEmail];
+    return matchers.some(matcher => fromText.includes(matcher.toLowerCase()));
+}
+
+function extractOtpFromContent(service, text, html, subject) {
+    const parts = [text, stripHtml(html), subject].filter(Boolean);
+    const plainText = parts.join('\n');
+    if (!plainText) return null;
+
+    const contextualPatterns = [
+        /(?:otp|code|verification|verify|รหัส|ยืนยัน)[^\d]{0,30}(\d{4,8})/i,
+        /(\d{4,8})[^\d]{0,30}(?:otp|code|verification|verify|รหัส|ยืนยัน)/i,
+        /(?:is|คือ|:)\s*(\d{4,8})\b/i
+    ];
+
+    for (const pattern of contextualPatterns) {
+        const match = plainText.match(pattern);
+        if (match && match[1]) return match[1];
+    }
+
+    const candidates = [...plainText.matchAll(/\b(\d{4,8})\b/g)]
+        .map(m => m[1])
+        .filter(code => {
+            if (code.length === 4) {
+                const year = parseInt(code, 10);
+                if (year >= 1900 && year <= 2100) return false;
+            }
+            return true;
+        });
+
+    if (candidates.length === 0) return null;
+
+    const preferredLength = service === 'trueid' ? 6 : 6;
+    const exactLength = candidates.find(code => code.length === preferredLength);
+    if (exactLength) return exactLength;
+
+    const sixDigit = candidates.find(code => code.length === 6);
+    if (sixDigit) return sixDigit;
+
+    return candidates[0];
+}
+
+function resolveEmailFetchMethod(emailObj, targetEmail) {
+    const email = normalizeEmailAddress(targetEmail);
+
+    if (emailObj && emailObj.system === 'Gmail') return 'gmail_imap';
+    if (emailObj && emailObj.system === 'MailySpace') return 'maily_api';
+    if (email.endsWith('@gmail.com')) return 'gmail_imap';
+    if (email.endsWith('maily.space') || email.includes('@')) return 'maily_api';
+    return 'maily_imap';
+}
+
+function parseMailyApiMails(data) {
+    if (!data) return null;
+    if (Array.isArray(data.mails)) return data.mails;
+    if (data.data && Array.isArray(data.data.mails)) return data.data.mails;
+    if (Array.isArray(data.data)) return data.data;
+    if (Array.isArray(data)) return data;
+    return null;
+}
+
+async function fetchMailySpaceMails(apiKey, targetEmail) {
+    const postData = JSON.stringify({
+        apiKey: apiKey.replace(/\s+/g, ''),
+        email: targetEmail,
+        size: 50
+    });
+
+    if (typeof fetch === 'function') {
+        const response = await fetch('https://api.maily.space/v1/mails', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: postData
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error(`[MailySpace API Error] Status: ${response.status}, Response: ${errText}`);
+            throw new Error(`Maily Space API returned status ${response.status}`);
+        }
+        return response.json();
+    }
+
+    const https = require('https');
+    return new Promise((resolve, reject) => {
+        const req = https.request({
+            hostname: 'api.maily.space',
+            path: '/v1/mails',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(postData)
+            }
+        }, (res) => {
+            let body = '';
+            res.on('data', (chunk) => body += chunk);
+            res.on('end', () => {
+                if (res.statusCode < 200 || res.statusCode >= 300) {
+                    reject(new Error(`API returned status ${res.statusCode}: ${body}`));
+                } else {
+                    try {
+                        resolve(JSON.parse(body));
+                    } catch (e) {
+                        reject(e);
+                    }
+                }
+            });
+        });
+        req.on('error', (e) => reject(e));
+        req.write(postData);
+        req.end();
+    });
+}
+
+function sortOtpsNewestFirst(results) {
+    return results.sort((a, b) => b.timestamp - a.timestamp);
+}
+
 async function getRealOTP(service, targetEmail) {
     const senderEmail = SENDER_EMAILS[service];
     if (!senderEmail) {
         throw new Error('ไม่รองรับบริการนี้');
     }
 
+    const normalizedTarget = normalizeEmailAddress(targetEmail);
     const emails = await getEmails();
-    const emailObj = emails.find(e => e.email === targetEmail);
+    const emailObj = emails.find(e => normalizeEmailAddress(e.email) === normalizedTarget);
+    const fetchMethod = resolveEmailFetchMethod(emailObj, targetEmail);
 
-    // 1. Maily Space REST API integration
-    const isMailySpace = (emailObj && emailObj.system === 'MailySpace') || 
-                          targetEmail.toLowerCase().endsWith('maily.space') || 
-                          !targetEmail.toLowerCase().endsWith('@gmail.com');
-    if (isMailySpace) {
+    // 1. Maily Space REST API
+    if (fetchMethod === 'maily_api') {
         const globalSettings = await getGlobalSettings();
         const dbMailyPass = globalSettings.mailyPass || '';
         if (dbMailyPass === '' || dbMailyPass === 'YOUR_PASSWORD') {
@@ -77,102 +217,29 @@ async function getRealOTP(service, targetEmail) {
 
         try {
             console.log(`[MailySpace Debug] Fetching emails via REST API for target: ${targetEmail}`);
-            const apiKey = dbMailyPass.replace(/\s+/g, '');
-            const postData = JSON.stringify({
-                apiKey: apiKey,
-                email: targetEmail,
-                size: 50
-            });
-
-            let data;
-            if (typeof fetch === 'function') {
-                const response = await fetch('https://api.maily.space/v1/mails', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: postData
-                });
-
-                if (!response.ok) {
-                    const errText = await response.text();
-                    console.error(`[MailySpace API Error] Status: ${response.status}, Response: ${errText}`);
-                    throw new Error(`Maily Space API returned status ${response.status}`);
-                }
-                data = await response.json();
-            } else {
-                // Fallback using built-in https module
-                const https = require('https');
-                data = await new Promise((resolve, reject) => {
-                    const req = https.request({
-                        hostname: 'api.maily.space',
-                        path: '/v1/mails',
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Content-Length': Buffer.byteLength(postData)
-                        }
-                    }, (res) => {
-                        let body = '';
-                        res.on('data', (chunk) => body += chunk);
-                        res.on('end', () => {
-                            if (res.statusCode < 200 || res.statusCode >= 300) {
-                                reject(new Error(`API returned status ${res.statusCode}: ${body}`));
-                            } else {
-                                try {
-                                    resolve(JSON.parse(body));
-                                } catch (e) {
-                                    reject(e);
-                                }
-                            }
-                        });
-                    });
-                    req.on('error', (e) => reject(e));
-                    req.write(postData);
-                    req.end();
-                });
-            }
-
-            let mailsArray = null;
-            if (data && data.data && Array.isArray(data.data.mails)) {
-                mailsArray = data.data.mails;
-            } else if (data && Array.isArray(data.mails)) {
-                mailsArray = data.mails;
-            }
+            const data = await fetchMailySpaceMails(dbMailyPass, targetEmail);
+            const mailsArray = parseMailyApiMails(data);
 
             if (!mailsArray) {
+                console.error('[MailySpace API] Unexpected response shape:', JSON.stringify(data).slice(0, 500));
                 throw new Error('รูปแบบการตอบกลับจาก Maily Space API ไม่ถูกต้อง');
             }
 
             const nowMs = Date.now();
-            const tenMinMs = 10 * 60 * 1000;
             const results = [];
 
             for (const mail of mailsArray) {
-                const emailDate = new Date(mail.createdAt);
-                
-                // Maily Space API returns emails ordered by createdAt descending (newest first).
-                // Let's filter emails from last 10 minutes.
-                if (nowMs - emailDate.getTime() > tenMinMs) {
-                    continue; // skip old
-                }
+                const emailDate = new Date(mail.createdAt || mail.date || Date.now());
+                if (nowMs - emailDate.getTime() > OTP_WINDOW_MS) continue;
 
-                // Check sender
-                const matchers = SENDER_EMAIL_MATCHERS[service] || [senderEmail];
-                const matchesSender = matchers.some(matcher => mail.from.toLowerCase().includes(matcher.toLowerCase()));
-                if (!matchesSender) {
-                    continue;
-                }
+                const mailTo = normalizeEmailAddress(mail.to);
+                if (mailTo && mailTo !== normalizedTarget) continue;
 
-                const emailBody = mail.text || mail.html || '';
-                const otpRegex = /\b\d{4,6}\b/;
-                const match = emailBody.match(otpRegex);
+                if (!matchesServiceSender(mail.from, service, senderEmail)) continue;
 
-                if (match) {
-                    results.push({
-                        code: match[0],
-                        timestamp: emailDate.getTime()
-                    });
+                const code = extractOtpFromContent(service, mail.text, mail.html, mail.subject);
+                if (code) {
+                    results.push({ code, timestamp: emailDate.getTime() });
                 }
             }
 
@@ -182,7 +249,7 @@ async function getRealOTP(service, targetEmail) {
             }
 
             console.log(`✅ Found ${results.length} OTPs via MailySpace API`);
-            return results;
+            return sortOtpsNewestFirst(results);
 
         } catch (error) {
             console.error('🔥 MailySpace API Error:', error.message);
@@ -190,17 +257,17 @@ async function getRealOTP(service, targetEmail) {
         }
     }
 
-    // 2. Generic IMAP (Gmail or other custom domain fallback)
+    // 2. IMAP (Gmail or Maily central account)
     let activeConfig;
-    if (emailObj && emailObj.system === 'Gmail') {
-        if (!emailObj.password || emailObj.password.trim() === '') {
+    if (fetchMethod === 'gmail_imap') {
+        if (!emailObj || !emailObj.password || emailObj.password.trim() === '') {
             console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ Gmail App Password is not configured for ${targetEmail}.`);
-            throw new Error('กรุณาตั้งค่ารหัสผ่านสำหรับแอป (App Password) ของ Gmail บัญชีนี้ก่อนใช้งาน');
+            throw new Error('กรุณาตั้งค่ารหัสผ่านสำหรับแอป (App Password) ของ Gmail บัญชีนี้ในระบบหลังบ้านก่อนใช้งาน');
         }
         activeConfig = {
             imap: {
                 user: emailObj.email,
-                password: emailObj.password.replace(/\s+/g, ''), // เอาเว้นวรรคออกหากมี
+                password: emailObj.password.replace(/\s+/g, ''),
                 host: 'imap.gmail.com',
                 port: 993,
                 tls: true,
@@ -236,7 +303,7 @@ async function getRealOTP(service, targetEmail) {
     }
 
     try {
-        const isGmail = emailObj && emailObj.system === 'Gmail';
+        const isGmail = fetchMethod === 'gmail_imap';
         let connection;
 
         try {
@@ -279,21 +346,18 @@ async function getRealOTP(service, targetEmail) {
         const messages = await connection.search(searchCriteria, fetchOptions);
 
         const nowMs = Date.now();
-        const tenMinMs = 10 * 60 * 1000;
         const results = [];
 
-        // Parse from newest to oldest
         for (let i = messages.length - 1; i >= 0; i--) {
             const msg = messages[i];
             const allParts = msg.parts.find(p => p.which === '');
             const parsedMail = await simpleParser(allParts.body);
             const emailDate = parsedMail.date ? new Date(parsedMail.date) : new Date(msg.attributes.date);
 
-            if (nowMs - emailDate.getTime() > tenMinMs) {
+            if (nowMs - emailDate.getTime() > OTP_WINDOW_MS) {
                 break;
             }
 
-            // Check sender
             const fromAddresses = [];
             if (parsedMail.from && Array.isArray(parsedMail.from.value)) {
                 parsedMail.from.value.forEach(v => {
@@ -304,25 +368,21 @@ async function getRealOTP(service, targetEmail) {
             if (parsedMail.from && parsedMail.from.text) {
                 fromAddresses.push(parsedMail.from.text.toLowerCase());
             }
-            
-            const matchers = SENDER_EMAIL_MATCHERS[service] || [senderEmail];
-            const matchesSender = matchers.some(matcher => {
-                const lowerMatcher = matcher.toLowerCase();
-                return fromAddresses.some(addr => addr.includes(lowerMatcher));
-            });
-            if (!matchesSender) {
-                continue;
-            }
 
-            const emailBody = parsedMail.text || parsedMail.html || '';
-            const otpRegex = /\b\d{4,6}\b/;
-            const match = emailBody.match(otpRegex);
+            const matchesSender = fromAddresses.some(addr =>
+                matchesServiceSender(addr, service, senderEmail)
+            );
+            if (!matchesSender) continue;
 
-            if (match) {
-                results.push({
-                    code: match[0],
-                    timestamp: emailDate.getTime()
-                });
+            const code = extractOtpFromContent(
+                service,
+                parsedMail.text,
+                parsedMail.html,
+                parsedMail.subject
+            );
+
+            if (code) {
+                results.push({ code, timestamp: emailDate.getTime() });
             }
         }
 
@@ -334,7 +394,7 @@ async function getRealOTP(service, targetEmail) {
         }
 
         console.log(`✅ Found ${results.length} OTPs`);
-        return results;
+        return sortOtpsNewestFirst(results);
     } catch (error) {
         console.error('🔥 IMAP Error:', error.message);
         throw new Error(error.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์อีเมลได้ โปรดตรวจสอบการตั้งค่า');
@@ -744,10 +804,9 @@ app.get('/api/get-otp', async (req, res) => {
     }
 
     const emails = await getEmails();
-    // ค้นหาอีเมลในระบบ
-    let userEmail = emails.find(e => e.email === email && e.system === systemType);
+    const normalizedEmail = normalizeEmailAddress(email);
+    let userEmail = emails.find(e => normalizeEmailAddress(e.email) === normalizedEmail);
     if (!userEmail) {
-        // ถ้ายังไม่มีอีเมลในระบบ ให้เพิ่มอัตโนมัติ
         userEmail = {
             id: Date.now().toString(), email: email, system: systemType, isActive: true, pin: "",
             services: { disney: true, chatgpt: true, trueid: true, youku: true }
