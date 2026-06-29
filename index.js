@@ -124,10 +124,37 @@ function matchesServiceSender(fromValue, service, senderEmail) {
     return matchers.some(matcher => fromText.includes(matcher.toLowerCase()));
 }
 
-function extractOtpFromContent(service, text, html, subject) {
-    const parts = [text, stripHtml(html), subject].filter(Boolean);
-    const plainText = parts.join('\n');
+function extractOtpFromContent(service, text, html, subject, targetEmail) {
+    let plainText = [text, stripHtml(html), subject].filter(Boolean).join('\n');
     if (!plainText) return null;
+
+    // ล้างข้อมูลอีเมลและข้อมูลชื่ออีเมลของผู้ใช้ เพื่อป้องกันการดึงรหัสผิดพลาด
+    // 1. ลบรูปแบบอีเมลทั้งหมดออกไป (รวมถึง email addresses และ raw headers ที่มี @)
+    plainText = plainText.replace(/\S+@\S+/g, ' ');
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    plainText = plainText.replace(emailRegex, ' ');
+
+    // 2. ลบชื่ออีเมลปลายทางออกไป (targetEmail)
+    if (targetEmail) {
+        const normalizedTarget = String(targetEmail).toLowerCase().trim();
+        const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        plainText = plainText.replace(new RegExp(escapeRegExp(normalizedTarget), 'gi'), ' ');
+
+        // 3. ลบส่วน Username ของอีเมลปลายทาง (ข้อความก่อนหน้าเครื่องหมาย @)
+        const atIdx = normalizedTarget.indexOf('@');
+        const username = atIdx > 0 ? normalizedTarget.substring(0, atIdx) : normalizedTarget;
+        if (username) {
+            plainText = plainText.replace(new RegExp(escapeRegExp(username), 'gi'), ' ');
+
+            // 4. ค้นหากลุ่มตัวเลข 4-8 หลักที่เป็นส่วนหนึ่งของ Username และตัดออกเพื่อไม่ให้นำมาคิดเป็น OTP
+            const digits = username.match(/\d{4,8}/g);
+            if (digits) {
+                for (const d of digits) {
+                    plainText = plainText.replace(new RegExp(`\\b${d}\\b`, 'g'), ' ');
+                }
+            }
+        }
+    }
 
     const contextualPatterns = [
         /(?:otp|code|verification|verify|รหัส|ยืนยัน)[^\d]{0,30}(\d{4,8})/i,
@@ -287,7 +314,7 @@ async function getRealOTP(service, targetEmail) {
 
                 if (!matchesServiceSender(mail.from, service, senderEmail)) continue;
 
-                const code = extractOtpFromContent(service, mail.text, mail.html, mail.subject);
+                const code = extractOtpFromContent(service, mail.text, mail.html, mail.subject, targetEmail);
                 if (code) {
                     results.push({ code, timestamp: emailDate.getTime() });
                 }
@@ -443,7 +470,8 @@ async function getRealOTP(service, targetEmail) {
                 service,
                 parsedMail.text,
                 parsedMail.html,
-                parsedMail.subject
+                parsedMail.subject,
+                targetEmail
             );
 
             if (code) {
