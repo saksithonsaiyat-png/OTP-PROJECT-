@@ -161,9 +161,9 @@ function extractOtpFromContent(service, text, html, subject, targetEmail) {
     plainText = plainText.replace(refRegex, ' ');
 
     const contextualPatterns = [
-        /(?:otp|code|verification|verify|รหัส|ยืนยัน|โค้ด)[^\d]{0,30}\b(\d{4,8})\b/i,
-        /\b(\d{4,8})\b[^\d]{0,30}(?:otp|code|verification|verify|รหัส|ยืนยัน|โค้ด)/i,
-        /(?:is|คือ|:)\s*\b(\d{4,8})\b/i
+        /(?:otp|code|verification|verify|รหัส|ยืนยัน|โค้ด)[^\d]{0,30}\b(\d{6})\b/i,
+        /\b(\d{6})\b[^\d]{0,30}(?:otp|code|verification|verify|รหัส|ยืนยัน|โค้ด)/i,
+        /(?:is|คือ|:)\s*\b(\d{6})\b/i
     ];
 
     for (const pattern of contextualPatterns) {
@@ -171,25 +171,10 @@ function extractOtpFromContent(service, text, html, subject, targetEmail) {
         if (match && match[1]) return match[1];
     }
 
-    const candidates = [...plainText.matchAll(/\b(\d{4,8})\b/g)]
-        .map(m => m[1])
-        .filter(code => {
-            if (code.length === 4) {
-                const year = parseInt(code, 10);
-                if (year >= 1900 && year <= 2100) return false;
-            }
-            return true;
-        });
+    const candidates = [...plainText.matchAll(/\b(\d{6})\b/g)]
+        .map(m => m[1]);
 
     if (candidates.length === 0) return null;
-
-    const preferredLength = service === 'trueid' ? 6 : 6;
-    const exactLength = candidates.find(code => code.length === preferredLength);
-    if (exactLength) return exactLength;
-
-    const sixDigit = candidates.find(code => code.length === 6);
-    if (sixDigit) return sixDigit;
-
     return candidates[0];
 }
 
@@ -549,7 +534,7 @@ app.get('/api/recent-otps', async (req, res) => {
             })
             .slice(0, 9)
             .map(m => {
-                const codeMatch = m.message.match(/\b\d{4,6}\b/);
+                const codeMatch = m.message.match(/\b\d{6}\b/);
                 const ts = m.timestamp || null;
                 const mTime = ts ? new Date(ts) : new Date();
                 const timeStr = mTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) + ' น.';
