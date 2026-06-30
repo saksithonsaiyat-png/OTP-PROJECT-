@@ -156,10 +156,14 @@ function extractOtpFromContent(service, text, html, subject, targetEmail) {
         }
     }
 
+    // 5. ลบคำว่า รหัสอ้างอิง และตัวรหัสอ้างอิง (เช่น รหัสอ้างอิง: 8080E88 หรือ Ref: ABCDEF) เพื่อไม่ให้นำรหัสอ้างอิงมาคิดเป็น OTP
+    const refRegex = /(?:รหัสอ้างอิง|ref(?:erence)?(?:\s*code)?|ref\s*no|ref)\s*[:：\-—]?\s*[a-zA-Z0-9]+/gi;
+    plainText = plainText.replace(refRegex, ' ');
+
     const contextualPatterns = [
-        /(?:otp|code|verification|verify|รหัส|ยืนยัน)[^\d]{0,30}(\d{4,8})/i,
-        /(\d{4,8})[^\d]{0,30}(?:otp|code|verification|verify|รหัส|ยืนยัน)/i,
-        /(?:is|คือ|:)\s*(\d{4,8})\b/i
+        /(?:otp|code|verification|verify|รหัส|ยืนยัน|โค้ด)[^\d]{0,30}\b(\d{4,8})\b/i,
+        /\b(\d{4,8})\b[^\d]{0,30}(?:otp|code|verification|verify|รหัส|ยืนยัน|โค้ด)/i,
+        /(?:is|คือ|:)\s*\b(\d{4,8})\b/i
     ];
 
     for (const pattern of contextualPatterns) {
