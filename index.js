@@ -54,6 +54,22 @@ const SENDER_EMAIL_MATCHERS = {
     'youku': ['service@notice.alibaba.com', 'notice.alibaba.com', 'youku.com', 'youku', 'alibaba']
 };
 
+const SERVICE_OTP_LENGTHS = {
+    'disney': [6, 4],
+    'chatgpt': [6],
+    'trueid': [6],
+    'youku': [6]
+};
+
+function isYear(code) {
+    if (code.length === 4) {
+        const year = parseInt(code, 10);
+        if (year >= 1900 && year <= 2100) return true; // Western years
+        if (year >= 2400 && year <= 2600) return true; // Thai Buddhist years
+    }
+    return false;
+}
+
 const OTP_WINDOW_MS = 10 * 60 * 1000;
 const MAX_OTP_RESULTS = 5;
 const IMAP_TIMEOUT_MS = 25000;
@@ -160,21 +176,34 @@ function extractOtpFromContent(service, text, html, subject, targetEmail) {
     const refRegex = /(?:รหัสอ้างอิง|ref(?:erence)?(?:\s*code)?|ref\s*no|ref)\s*[:：\-—]?\s*[a-zA-Z0-9]+/gi;
     plainText = plainText.replace(refRegex, ' ');
 
-    const contextualPatterns = [
-        /(?:otp|code|verification|verify|รหัส|ยืนยัน|โค้ด)[^\d]{0,30}\b(\d{6})\b/i,
-        /\b(\d{6})\b[^\d]{0,30}(?:otp|code|verification|verify|รหัส|ยืนยัน|โค้ด)/i,
-        /(?:is|คือ|:)\s*\b(\d{6})\b/i
-    ];
+    const preferredLengths = SERVICE_OTP_LENGTHS[service] || [6, 4];
 
-    for (const pattern of contextualPatterns) {
-        const match = plainText.match(pattern);
-        if (match && match[1]) return match[1];
+    for (const len of preferredLengths) {
+        const contextualPatterns = [
+            new RegExp(`(?:otp|code|verification|verify|รหัส|ยืนยัน|โค้ด)[^\\d]{0,30}\\b(\\d{${len}})\\b`, 'i'),
+            new RegExp(`\\b(\\d{${len}})\\b[^\\d]{0,30}(?:otp|code|verification|verify|รหัส|ยืนยัน|โค้ด)`, 'i'),
+            new RegExp(`(?:is|คือ|:)\\s*\\b(\\d{${len}})\\b`, 'i')
+        ];
+
+        for (const pattern of contextualPatterns) {
+            const match = plainText.match(pattern);
+            if (match && match[1]) {
+                if (isYear(match[1])) continue;
+                return match[1];
+            }
+        }
     }
 
-    const candidates = [...plainText.matchAll(/\b(\d{6})\b/g)]
-        .map(m => m[1]);
+    const candidates = [...plainText.matchAll(/\b(\d{4,8})\b/g)]
+        .map(m => m[1])
+        .filter(code => !isYear(code));
 
     if (candidates.length === 0) return null;
+
+    for (const len of preferredLengths) {
+        const exactLength = candidates.find(code => code.length === len);
+        if (exactLength) return exactLength;
+    }
     return candidates[0];
 }
 
@@ -534,12 +563,12 @@ app.get('/api/recent-otps', async (req, res) => {
             })
             .slice(0, 9)
             .map(m => {
-                const codeMatch = m.message.match(/\b\d{6}\b/);
+                const code = extractOtpFromContent(service, m.message, '', m.subject || '', email);
                 const ts = m.timestamp || null;
                 const mTime = ts ? new Date(ts) : new Date();
                 const timeStr = mTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) + ' น.';
                 const dateStr = mTime.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Bangkok' });
-                return codeMatch ? { code: codeMatch[0], time: timeStr, date: dateStr, timestamp: ts } : null;
+                return code ? { code, time: timeStr, date: dateStr, timestamp: ts } : null;
             })
             .filter(Boolean);
 
