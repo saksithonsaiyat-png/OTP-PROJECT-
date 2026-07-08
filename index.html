@@ -155,7 +155,7 @@
             class="flex-1 flex flex-col items-center content-transition w-full hidden absolute top-[100px] left-0 px-4 pb-10 z-10">
             <div id="main-logo-container"
                 class="w-24 h-24 rounded-2xl mb-4 flex items-center justify-center bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-0 overflow-hidden shadow-sm transition-all duration-700 relative">
-                <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover transform scale-110"
+                <img id="main-logo-img" src="" alt="Logo" class="w-full h-full object-cover transform scale-110 rounded-2xl"
                     onerror="this.src='https://placehold.co/100x100/png'" />
             </div>
 
@@ -234,7 +234,8 @@
             { id: 'disney', name: 'Disney+', bgCol: 'bg-[#02ABB2]', text: 'text-[#02ABB2] dark:text-[#02ABB2]', localImage: './disney.jpg' },
             { id: 'chatgpt', name: 'ChatGPT', bgCol: 'bg-[#10A37F]', text: 'text-[#10A37F] dark:text-[#10A37F]', localImage: './gpt.jpg' },
             { id: 'trueid', name: 'TrueID', bgCol: 'bg-[#E81C24]', text: 'text-[#E81C24] dark:text-[#E81C24]', localImage: './trueid.jpg' },
-            { id: 'youku', name: 'Youku', bgCol: 'bg-[#00A0E9]', text: 'text-[#00A0E9] dark:text-[#00A0E9]', localImage: './youku.jpg' }
+            { id: 'youku', name: 'Youku', bgCol: 'bg-[#00A0E9]', text: 'text-[#00A0E9] dark:text-[#00A0E9]', localImage: './youku.jpg' },
+            { id: 'truevisions', name: 'True Visions Now', bgCol: 'bg-[#E81C24]', text: 'text-[#E81C24] dark:text-[#E81C24]', localImage: './truevisions.jpg' }
         ];
 
         let activeService = null;
@@ -243,7 +244,7 @@
         let isSwitchingScreen = false;
         let otpList = [];
         let pendingRequest = null;
-        let globalSettings = { disney: true, chatgpt: true, trueid: true, youku: true };
+        let globalSettings = { disney: true, chatgpt: true, trueid: true, youku: true, truevisions: true };
 
         // จัดการเมนูสามขีด
         let isMenuOpen = false;
@@ -360,7 +361,7 @@
                 return `
                 <button onclick="goToService('${srv.id}')" class="${btnClasses}" style="animation-delay: ${index * 0.1}s">
                     <div class="w-14 h-14 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700 overflow-hidden flex items-center justify-center shrink-0 ${!isAvailable ? 'grayscale opacity-75' : ''}">
-                        <img src="${srv.localImage}" onerror="this.src='https://placehold.co/100x100/png'" class="w-full h-full object-cover">
+                        <img src="${srv.localImage}" onerror="this.src='https://placehold.co/100x100/png'" class="w-full h-full object-cover rounded-xl">
                     </div>
                     <div class="flex-1 text-left">
                         <h3 class="text-lg font-bold ${!isAvailable ? 'text-neutral-500 dark:text-neutral-400' : ''}">${srv.name}</h3>
@@ -478,7 +479,7 @@
                 return `
                 <div class="bg-white dark:bg-neutral-900/80 border border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 rounded-2xl overflow-hidden transition-all duration-300 animate-slideUpFade opacity-0" style="animation-delay: ${index * 0.08}s" onclick="toggleCard(${item.id})">
                     <div class="p-4 flex items-start gap-4 cursor-pointer">
-                        <div class="w-12 h-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative"><img src="${activeService.localImage}" onerror="this.src='https://placehold.co/100x100/png'" class="w-full h-full object-cover transform scale-110"></div>
+                        <div class="w-12 h-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative"><img src="${activeService.localImage}" onerror="this.src='https://placehold.co/100x100/png'" class="w-full h-full object-cover transform scale-110 rounded-xl"></div>
                         <div class="flex-1">
                             <div class="flex justify-between mb-1"><span class="text-sm font-medium text-neutral-600 dark:text-neutral-300">${item.date} ${item.time}</span> ${badgeHtml}</div>
                             <p class="text-base font-bold text-neutral-900 dark:text-white">${item.title}</p>

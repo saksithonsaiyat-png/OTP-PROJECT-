@@ -44,21 +44,24 @@ const SENDER_EMAILS = {
     'disney': 'code@notification.apps.disneyplus.com',
     'chatgpt': 'noreply@tm.openai.com',
     'trueid': 'message@verify.trueid.net',
-    'youku': 'service@notice.alibaba.com'
+    'youku': 'service@notice.alibaba.com',
+    'truevisions': 'message@verify.trueid.net'
 };
 
 const SENDER_EMAIL_MATCHERS = {
     'disney': ['code@notification.apps.disneyplus.com', 'disneyplus.com', 'disneyplus', 'disney.com'],
     'chatgpt': ['noreply@tm.openai.com', 'openai.com', 'chatgpt'],
     'trueid': ['message@verify.trueid.net', 'trueid.net', 'trueid.co.th', 'trueid'],
-    'youku': ['service@notice.alibaba.com', 'notice.alibaba.com', 'youku.com', 'youku', 'alibaba']
+    'youku': ['service@notice.alibaba.com', 'notice.alibaba.com', 'youku.com', 'youku', 'alibaba'],
+    'truevisions': ['message@verify.trueid.net', 'trueid.net', 'trueid.co.th', 'trueid']
 };
 
 const SERVICE_OTP_LENGTHS = {
     'disney': [6, 4],
     'chatgpt': [6],
     'trueid': [6],
-    'youku': [6]
+    'youku': [6],
+    'truevisions': [6]
 };
 
 function isYear(code) {
@@ -585,14 +588,44 @@ const DB_FILE = path.join(__dirname, 'db.json');
 
 const defaultDB = {
     admin: { username: "admin", password: "password" },
-    globalSettings: { disney: true, chatgpt: true, trueid: true, youku: true },
+    globalSettings: { disney: true, chatgpt: true, trueid: true, youku: true, truevisions: true },
     emails: [],
     history: [],
     inbox: []
 };
 
 function initDB() {
-    if (!fs.existsSync(DB_FILE)) fs.writeFileSync(DB_FILE, JSON.stringify(defaultDB, null, 2), 'utf8');
+    if (!fs.existsSync(DB_FILE)) {
+        fs.writeFileSync(DB_FILE, JSON.stringify(defaultDB, null, 2), 'utf8');
+    } else {
+        try {
+            const db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+            let changed = false;
+            if (db.globalSettings) {
+                if (db.globalSettings.truevisions === undefined) {
+                    db.globalSettings.truevisions = true;
+                    changed = true;
+                }
+            }
+            if (Array.isArray(db.emails)) {
+                db.emails.forEach(e => {
+                    if (!e.services) {
+                        e.services = { disney: true, chatgpt: true, trueid: true, youku: true, truevisions: true };
+                        changed = true;
+                    } else if (e.services.truevisions === undefined) {
+                        e.services.truevisions = true;
+                        changed = true;
+                    }
+                });
+            }
+            if (changed) {
+                fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
+                console.log("🚚 [Migration] Local db.json migrated to add True Visions Now support.");
+            }
+        } catch (err) {
+            console.error("❌ [Migration] Failed to migrate local db.json:", err.message);
+        }
+    }
 }
 initDB();
 
@@ -925,7 +958,7 @@ app.get('/api/get-otp', async (req, res) => {
 
     // เช็คสถานะการให้บริการของอีเมลนี้
     if (!userEmail.isActive) return res.status(400).json({ success: false, error: "อีเมลนี้ถูกระงับการให้บริการชั่วคราว" });
-    if (!userEmail.services[service]) return res.status(400).json({ success: false, error: `อีเมลนี้ไม่ได้เปิดใช้งานแอปพลิเคชัน ${service}` });
+    if (userEmail.services && userEmail.services[service] === false) return res.status(400).json({ success: false, error: `อีเมลนี้ไม่ได้เปิดใช้งานแอปพลิเคชัน ${service}` });
 
     // เช็ครหัส PIN (ถ้ามีการตั้งไว้)
     if (userEmail.pin && userEmail.pin !== "") {
@@ -1058,7 +1091,7 @@ app.post('/api/admin/add-email', async (req, res) => {
     if (!emails.find(e => e.email === email && e.system === finalSystem)) {
         await saveEmail({
             id: Date.now().toString(), email: email, system: finalSystem, password: password || "", isActive: true, pin: "",
-            services: { disney: true, chatgpt: true, trueid: true, youku: true }
+            services: { disney: true, chatgpt: true, trueid: true, youku: true, truevisions: true }
         });
         broadcastEvent('refresh');
     }
@@ -1215,7 +1248,7 @@ app.get('/admin', (req, res) => {
                 </div>
 
                 <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (เดือนนี้)</h2>
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
                         <div class="text-3xl md:text-4xl font-black mt-2" style="color: #02ABB2;" x-text="countAppMonthly('disney')"></div>
@@ -1231,6 +1264,10 @@ app.get('/admin', (req, res) => {
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Youku</div>
                         <div class="text-3xl md:text-4xl font-black text-sky-500 mt-2" x-text="countAppMonthly('youku')"></div>
+                    </div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">True Visions Now</div>
+                        <div class="text-3xl md:text-4xl font-black text-red-600 mt-2" x-text="countAppMonthly('truevisions')"></div>
                     </div>
                 </div>
             </div>
@@ -1567,10 +1604,11 @@ app.get('/admin', (req, res) => {
                                     </td>
                                     
                                     <td class="p-3">
-                                        <div class="flex justify-center gap-1.5">
+                                        <div class="flex justify-center gap-1.5 flex-wrap">
                                             <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-[#02ABB2] text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">Disney</button>
                                             <button @click="e.services.chatgpt = !e.services.chatgpt; saveEmail(e)" :class="e.services.chatgpt?'bg-emerald-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">GPT</button>
                                             <button @click="e.services.trueid = !e.services.trueid; saveEmail(e)" :class="e.services.trueid?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">TrueID</button>
+                                            <button @click="e.services.truevisions = !e.services.truevisions; saveEmail(e)" :class="e.services.truevisions?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">True Visions Now</button>
                                             <button @click="e.services.youku = !e.services.youku; saveEmail(e)" :class="e.services.youku?'bg-sky-500 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all">Youku</button>
                                         </div>
                                     </td>
@@ -1619,11 +1657,12 @@ app.get('/admin', (req, res) => {
                             
                             <div class="flex flex-col space-y-2 border-t border-gray-100 pt-3">
                                 <span class="text-sm font-bold text-gray-500">จัดการบริการ</span>
-                                <div class="grid grid-cols-4 gap-1.5">
-                                    <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-[#02ABB2] text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">Disney</button>
-                                    <button @click="e.services.chatgpt = !e.services.chatgpt; saveEmail(e)" :class="e.services.chatgpt?'bg-emerald-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">GPT</button>
-                                    <button @click="e.services.trueid = !e.services.trueid; saveEmail(e)" :class="e.services.trueid?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">TrueID</button>
-                                    <button @click="e.services.youku = !e.services.youku; saveEmail(e)" :class="e.services.youku?'bg-sky-500 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="py-2 rounded-lg text-[10px] font-bold transition-all text-center">Youku</button>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <button @click="e.services.disney = !e.services.disney; saveEmail(e)" :class="e.services.disney?'bg-[#02ABB2] text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all text-center">Disney</button>
+                                    <button @click="e.services.chatgpt = !e.services.chatgpt; saveEmail(e)" :class="e.services.chatgpt?'bg-emerald-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all text-center">GPT</button>
+                                    <button @click="e.services.trueid = !e.services.trueid; saveEmail(e)" :class="e.services.trueid?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all text-center">TrueID</button>
+                                    <button @click="e.services.truevisions = !e.services.truevisions; saveEmail(e)" :class="e.services.truevisions?'bg-red-600 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all text-center">True Visions Now</button>
+                                    <button @click="e.services.youku = !e.services.youku; saveEmail(e)" :class="e.services.youku?'bg-sky-500 text-white shadow-sm':'bg-gray-200 text-gray-500'" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all text-center">Youku</button>
                                 </div>
                             </div>
 
@@ -1848,6 +1887,14 @@ app.get('/admin', (req, res) => {
                                     :class="db.globalSettings.youku ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'" 
                                     class="px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all">
                                 <span x-text="db.globalSettings.youku ? 'เปิดให้บริการ' : 'ปิดให้บริการ'"></span>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                            <span class="font-bold text-gray-700 text-lg">True Visions Now</span>
+                            <button @click="db.globalSettings.truevisions = !db.globalSettings.truevisions; saveSettings()" 
+                                    :class="db.globalSettings.truevisions ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'" 
+                                    class="px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all">
+                                <span x-text="db.globalSettings.truevisions ? 'เปิดให้บริการ' : 'ปิดให้บริการ'"></span>
                             </button>
                         </div>
                     </div>
