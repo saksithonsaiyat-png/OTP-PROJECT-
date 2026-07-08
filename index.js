@@ -212,7 +212,7 @@ function resolveEmailFetchMethod(emailObj, targetEmail) {
 
     if (emailObj && emailObj.system === 'Gmail') return 'gmail_imap';
     if (emailObj && emailObj.system === 'MailySpace') return 'maily_api';
-    if (email.endsWith('@gmail.com')) return 'gmail_imap';
+    if (email.endsWith('@gmail.com') || email.endsWith('@alazinst.org')) return 'gmail_imap';
     if (email.endsWith('maily.space') || email.includes('@')) return 'maily_api';
     return 'maily_imap';
 }
@@ -1033,17 +1033,31 @@ app.post('/api/admin/update-admin', async (req, res) => {
 });
 
 app.post('/api/admin/update-email', async (req, res) => {
-    await saveEmail(req.body);
+    const emailObj = req.body;
+    if (emailObj && emailObj.email) {
+        const normalizedEmail = emailObj.email.trim().toLowerCase();
+        if (normalizedEmail.endsWith('@gmail.com') || normalizedEmail.endsWith('@alazinst.org')) {
+            emailObj.system = 'Gmail';
+        }
+    }
+    await saveEmail(emailObj);
     broadcastEvent('refresh');
     res.json({ success: true });
 });
 
 app.post('/api/admin/add-email', async (req, res) => {
     const { email, system, password } = req.body;
+    let finalSystem = system;
+    if (email) {
+        const normalizedEmail = email.trim().toLowerCase();
+        if (normalizedEmail.endsWith('@gmail.com') || normalizedEmail.endsWith('@alazinst.org')) {
+            finalSystem = 'Gmail';
+        }
+    }
     const emails = await getEmails();
-    if (!emails.find(e => e.email === email && e.system === system)) {
+    if (!emails.find(e => e.email === email && e.system === finalSystem)) {
         await saveEmail({
-            id: Date.now().toString(), email: email, system: system, password: password || "", isActive: true, pin: "",
+            id: Date.now().toString(), email: email, system: finalSystem, password: password || "", isActive: true, pin: "",
             services: { disney: true, chatgpt: true, trueid: true, youku: true }
         });
         broadcastEvent('refresh');

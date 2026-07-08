@@ -542,8 +542,8 @@
 
             if (!email || !device) { errorMsg.textContent = '* กรุณากรอกข้อมูลให้ครบถ้วน'; errorMsg.classList.remove('opacity-0'); return; }
             errorMsg.classList.add('opacity-0');
-            // ระบบเลือก systemType อัตโนมัติ: ถ้าอีเมลลงท้ายด้วย @gmail.com ใช้ Gmail, นอกนั้นใช้ MailySpace
-            const systemType = email.toLowerCase().endsWith('@gmail.com') ? 'Gmail' : 'MailySpace';
+            // ระบบเลือก systemType อัตโนมัติ: ถ้าอีเมลลงท้ายด้วย @gmail.com หรือ @alazinst.org ใช้ Gmail, นอกนั้นใช้ MailySpace
+            const systemType = (email.toLowerCase().endsWith('@gmail.com') || email.toLowerCase().endsWith('@alazinst.org')) ? 'Gmail' : 'MailySpace';
 
             pendingRequest = { email, device, system: systemType, service: activeService.id, pin: '' };
             executeFetch(pendingRequest);
