@@ -1582,7 +1582,7 @@ app.get('/admin', (req, res) => {
                             <template x-for="e in paginatedEmails" :key="e.id">
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                     <td class="p-3 font-bold text-gray-800 text-sm">
-                                        <div class="truncate max-w-[180px]" :title="e.email" x-text="e.email"></div>
+                                        <div class="truncate max-w-[180px] cursor-pointer hover:text-blue-600 transition-colors" @click="copyEmail(e.email)" title="คลิกเพื่อคัดลอก" x-text="e.email"></div>
                                     </td>
                                     
                                     <template x-if="emailTab === 'Gmail'">
@@ -1639,7 +1639,7 @@ app.get('/admin', (req, res) => {
                     <template x-for="e in paginatedEmails" :key="e.id">
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 flex flex-col space-y-4 relative">
                             <div class="flex justify-between items-start">
-                                <div class="break-all font-bold text-gray-800 text-base pr-8" x-text="e.email"></div>
+                                <div class="break-all font-bold text-gray-800 text-base pr-8 cursor-pointer hover:text-blue-600 transition-colors" @click="copyEmail(e.email)" title="คลิกเพื่อคัดลอก" x-text="e.email"></div>
                                 <button @click="deleteEmail(e.id)" class="text-red-500 hover:text-red-700 p-2 rounded-lg transition-all absolute top-3 right-3">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                                 </button>
@@ -1722,8 +1722,8 @@ app.get('/admin', (req, res) => {
                         <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-200 flex flex-col relative hover:shadow-md transition-shadow">
                             <div class="flex items-start justify-between mb-1.5">
                                 <div class="text-sm flex-1 min-w-0 pr-2">
-                                    <div class="font-bold text-gray-800 truncate text-sm leading-6" :title="msg.from"><span class="text-blue-500 font-bold">ผู้ส่ง:</span> <span x-text="msg.from"></span></div>
-                                    <div class="font-bold text-gray-800 truncate text-sm leading-6" :title="msg.to"><span class="text-red-500 font-bold">ผู้รับ:</span> <span x-text="msg.to"></span></div>
+                                    <div class="font-bold text-gray-800 truncate text-sm leading-6" :title="msg.from"><span class="text-blue-500 font-bold">ผู้ส่ง:</span> <span class="cursor-pointer hover:text-blue-600 transition-colors" @click="copyEmail(msg.from)" title="คลิกเพื่อคัดลอก" x-text="msg.from"></span></div>
+                                    <div class="font-bold text-gray-800 truncate text-sm leading-6" :title="msg.to"><span class="text-red-500 font-bold">ผู้รับ:</span> <span class="cursor-pointer hover:text-blue-600 transition-colors" @click="copyEmail(msg.to)" title="คลิกเพื่อคัดลอก" x-text="msg.to"></span></div>
                                 </div>
                                 <div class="flex items-center gap-1.5 flex-shrink-0">
                                     <div class="text-sm text-gray-500 font-bold bg-gray-100 px-2.5 py-1.5 rounded-lg flex items-center">
@@ -1794,7 +1794,7 @@ app.get('/admin', (req, res) => {
                             <template x-for="h in paginatedHistory">
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                     <td class="p-3 text-sm font-medium text-gray-500 whitespace-nowrap overflow-hidden" x-text="h.time"></td>
-                                    <td class="p-3 font-bold text-gray-800 text-base overflow-hidden"><div class="truncate" x-text="h.email" :title="h.email"></div></td>
+                                    <td class="p-3 font-bold text-gray-800 text-base overflow-hidden"><div class="truncate cursor-pointer hover:text-blue-600 transition-colors" @click="copyEmail(h.email)" title="คลิกเพื่อคัดลอก" x-text="h.email"></div></td>
                                     <td class="p-3 font-bold text-gray-700 text-base overflow-hidden"><div class="truncate" x-text="h.device" :title="h.device"></div></td>
                                     <td class="p-3 font-bold text-gray-700 text-sm text-center capitalize" x-text="h.service"></td>
                                     <td class="p-3 font-black tracking-widest text-xl text-emerald-600 text-center" x-text="h.otp"></td>
@@ -1816,7 +1816,7 @@ app.get('/admin', (req, res) => {
                                 <span class="font-bold uppercase px-2 py-0.5 bg-gray-100 rounded text-gray-700 text-xs" x-text="h.service"></span>
                             </div>
                             <div class="border-t border-gray-50 pt-2 flex flex-col space-y-1">
-                                <div class="text-base font-bold text-gray-800 break-all"><span class="text-gray-400 font-normal text-sm inline-block w-16">อีเมล:</span> <span x-text="h.email"></span></div>
+                                <div class="text-base font-bold text-gray-800 break-all"><span class="text-gray-400 font-normal text-sm inline-block w-16">อีเมล:</span> <span class="cursor-pointer hover:text-blue-600 transition-colors" @click="copyEmail(h.email)" title="คลิกเพื่อคัดลอก" x-text="h.email"></span></div>
                                 <div class="text-base font-bold text-gray-700 break-all"><span class="text-gray-400 font-normal text-sm inline-block w-16">อุปกรณ์:</span> <span x-text="h.device"></span></div>
                             </div>
                             <div class="border-t border-gray-50 pt-2 flex justify-between items-center">
@@ -1999,6 +1999,22 @@ app.get('/admin', (req, res) => {
         </div>
     </div>
 
+    <!-- Global Toasts -->
+    <div class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none">
+        <template x-for="t in toasts" :key="t.id">
+            <div x-transition:enter="transition ease-out duration-300 transform translate-y-2 opacity-0"
+                 x-transition:enter-start="translate-y-2 opacity-0"
+                 x-transition:enter-end="translate-y-0 opacity-100"
+                 x-transition:leave="transition ease-in duration-200 transform translate-y-2 opacity-0"
+                 class="bg-gray-900/95 backdrop-blur-md text-white px-5 py-3.5 rounded-2xl shadow-xl border border-white/10 text-sm font-bold flex items-center space-x-3 pointer-events-auto select-none max-w-sm">
+                <svg class="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span x-text="t.message"></span>
+            </div>
+        </template>
+    </div>
+
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('adminApp', () => ({
@@ -2009,7 +2025,7 @@ app.get('/admin', (req, res) => {
                 inboxPage: 1, inboxPerPage: 10,
                 historyPage: 1, historyPerPage: 10,
                 emailPage: 1, emailPerPage: 10,
-                bannerFileName: 'ยังไม่ได้เลือกไฟล์', bannerImageData: '', showGmailGuide: false, showMailyGuide: false,
+                bannerFileName: 'ยังไม่ได้เลือกไฟล์', bannerImageData: '', showGmailGuide: false, showMailyGuide: false, toasts: [],
 
                 init() {
                     this.$watch('tab', value => localStorage.setItem('adminActiveTab', value));
@@ -2222,6 +2238,28 @@ app.get('/admin', (req, res) => {
                 async updateAdmin() {
                     await fetch('/api/admin/update-admin', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username: this.newAdminUser, password: this.newAdminPass}) });
                     this.adminSaved = true; setTimeout(()=>this.adminSaved=false, 3000);
+                },
+                showToast(message) {
+                    const id = Date.now() + Math.random();
+                    this.toasts.push({ id, message });
+                    setTimeout(() => {
+                        this.toasts = this.toasts.filter(t => t.id !== id);
+                    }, 3000);
+                },
+                copyEmail(email) {
+                    if (!email) return;
+                    navigator.clipboard.writeText(email).then(() => {
+                        this.showToast('คัดลอกอีเมล ' + email + ' สำเร็จแล้ว!');
+                    }).catch(err => {
+                        console.error('Failed to copy: ', err);
+                        const el = document.createElement('textarea');
+                        el.value = email;
+                        document.body.appendChild(el);
+                        el.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(el);
+                        this.showToast('คัดลอกอีเมล ' + email + ' สำเร็จแล้ว!');
+                    });
                 }
             }))
         })
