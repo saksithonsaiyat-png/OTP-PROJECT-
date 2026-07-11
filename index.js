@@ -1208,7 +1208,7 @@ app.get('/admin', (req, res) => {
                 </div>
 
                 <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (วันนี้)</h2>
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-8">
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
                         <div class="text-3xl md:text-4xl font-black mt-2" style="color: #02ABB2;" x-text="countAppDaily('disney')"></div>
@@ -1225,10 +1225,14 @@ app.get('/admin', (req, res) => {
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Youku</div>
                         <div class="text-3xl md:text-4xl font-black text-sky-500 mt-2" x-text="countAppDaily('youku')"></div>
                     </div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">True Visions Now</div>
+                        <div class="text-3xl md:text-4xl font-black text-red-600 mt-2" x-text="countAppDaily('truevisions')"></div>
+                    </div>
                 </div>
 
                 <h2 class="text-base md:text-lg font-bold mb-4 text-gray-600">สถิติการค้นหา OTP (สัปดาห์นี้)</h2>
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-8">
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Disney+</div>
                         <div class="text-3xl md:text-4xl font-black mt-2" style="color: #02ABB2;" x-text="countAppWeekly('disney')"></div>
@@ -1244,6 +1248,10 @@ app.get('/admin', (req, res) => {
                     <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
                         <div class="text-gray-400 font-bold text-xs md:text-sm">Youku</div>
                         <div class="text-3xl md:text-4xl font-black text-sky-500 mt-2" x-text="countAppWeekly('youku')"></div>
+                    </div>
+                    <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-center">
+                        <div class="text-gray-400 font-bold text-xs md:text-sm">True Visions Now</div>
+                        <div class="text-3xl md:text-4xl font-black text-red-600 mt-2" x-text="countAppWeekly('truevisions')"></div>
                     </div>
                 </div>
 
@@ -1777,15 +1785,15 @@ app.get('/admin', (req, res) => {
                         <colgroup>
                             <col class="w-36">
                             <col class="w-auto">
-                            <col class="w-36">
-                            <col class="w-36">
-                            <col class="w-36">
+                            <col class="w-24">
+                            <col class="w-20">
+                            <col class="w-28">
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
                             <tr>
                                 <th class="p-3.5 font-bold text-sm">วันที่ / เวลา</th>
                                 <th class="p-3.5 font-bold text-sm">บัญชีอีเมล</th>
-                                <th class="p-3.5 font-bold text-sm text-center">ชื่ออุปกรณ์</th>
+                                <th class="p-3.5 font-bold text-sm">ชื่ออุปกรณ์</th>
                                 <th class="p-3.5 font-bold text-sm text-center">บริการ</th>
                                 <th class="p-3.5 font-bold text-sm text-center">รหัสที่แสดง</th>
                             </tr>
@@ -1795,7 +1803,7 @@ app.get('/admin', (req, res) => {
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                     <td class="p-3 text-sm font-medium text-gray-500 whitespace-nowrap overflow-hidden" x-text="h.time"></td>
                                     <td class="p-3 font-bold text-gray-800 text-base overflow-hidden"><div class="truncate cursor-pointer hover:text-blue-600 transition-colors" @click="copyEmail(h.email)" title="คลิกเพื่อคัดลอก" x-text="h.email"></div></td>
-                                    <td class="p-3 font-bold text-gray-700 text-base overflow-hidden"><div class="truncate text-center" x-text="h.device" :title="h.device"></div></td>
+                                    <td class="p-3 font-bold text-gray-700 text-base overflow-hidden"><div class="truncate" x-text="h.device" :title="h.device"></div></td>
                                     <td class="p-3 font-bold text-gray-700 text-sm text-center capitalize" x-text="h.service"></td>
                                     <td class="p-3 font-black tracking-widest text-xl text-emerald-600 text-center" x-text="h.otp"></td>
                                 </tr>
