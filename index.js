@@ -1777,15 +1777,15 @@ app.get('/admin', (req, res) => {
                         <colgroup>
                             <col class="w-36">
                             <col class="w-auto">
-                            <col class="w-48">
-                            <col class="w-32">
-                            <col class="w-28">
+                            <col class="w-36">
+                            <col class="w-36">
+                            <col class="w-36">
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
                             <tr>
                                 <th class="p-3.5 font-bold text-sm">วันที่ / เวลา</th>
                                 <th class="p-3.5 font-bold text-sm">บัญชีอีเมล</th>
-                                <th class="p-3.5 font-bold text-sm">ชื่ออุปกรณ์</th>
+                                <th class="p-3.5 font-bold text-sm text-center">ชื่ออุปกรณ์</th>
                                 <th class="p-3.5 font-bold text-sm text-center">บริการ</th>
                                 <th class="p-3.5 font-bold text-sm text-center">รหัสที่แสดง</th>
                             </tr>
@@ -1795,7 +1795,7 @@ app.get('/admin', (req, res) => {
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                     <td class="p-3 text-sm font-medium text-gray-500 whitespace-nowrap overflow-hidden" x-text="h.time"></td>
                                     <td class="p-3 font-bold text-gray-800 text-base overflow-hidden"><div class="truncate cursor-pointer hover:text-blue-600 transition-colors" @click="copyEmail(h.email)" title="คลิกเพื่อคัดลอก" x-text="h.email"></div></td>
-                                    <td class="p-3 font-bold text-gray-700 text-base overflow-hidden"><div class="truncate" x-text="h.device" :title="h.device"></div></td>
+                                    <td class="p-3 font-bold text-gray-700 text-base overflow-hidden"><div class="truncate text-center" x-text="h.device" :title="h.device"></div></td>
                                     <td class="p-3 font-bold text-gray-700 text-sm text-center capitalize" x-text="h.service"></td>
                                     <td class="p-3 font-black tracking-widest text-xl text-emerald-600 text-center" x-text="h.otp"></td>
                                 </tr>
