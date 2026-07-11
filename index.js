@@ -1785,8 +1785,8 @@ app.get('/admin', (req, res) => {
                         <colgroup>
                             <col class="w-36">
                             <col class="w-auto">
-                            <col class="w-24">
-                            <col class="w-20">
+                            <col class="w-48">
+                            <col class="w-32">
                             <col class="w-28">
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
